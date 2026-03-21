@@ -60,28 +60,31 @@
         public function create(){
 
             $query = 'INSERT INTO ' . $this->table . ' 
-                (student_id, first_name, last_name, middle_name, course, course_level, email, password) 
+                (student_id, first_name, last_name, middle_name, course, course_level, email, password, address) 
                 VALUES 
-                (:student_id, :first_name, :last_name, :middle_name, :course, :course_level, :email, :password)
+                (:student_id, :first_name, :last_name, :middle_name, :course, :course_level, :email, :password, :address)
                 RETURNING id';
+
             $stmt = $this->conn->prepare($query);
 
-            $this->student_id = htmlspecialchars(strip_tags($this->student_id));
-            $this->first_name = htmlspecialchars(strip_tags($this->first_name));
-            $this->last_name = htmlspecialchars(strip_tags($this->last_name));
-            $this->middle_name = htmlspecialchars(strip_tags($this->middle_name));
-            $this->course = htmlspecialchars(strip_tags($this->course));
+            $this->student_id   = htmlspecialchars(strip_tags($this->student_id));
+            $this->first_name   = htmlspecialchars(strip_tags($this->first_name));
+            $this->last_name    = htmlspecialchars(strip_tags($this->last_name));
+            $this->middle_name  = htmlspecialchars(strip_tags($this->middle_name));
+            $this->course       = htmlspecialchars(strip_tags($this->course));
             $this->course_level = htmlspecialchars(strip_tags($this->course_level));
-            $this->email = htmlspecialchars(strip_tags($this->email));
+            $this->email        = htmlspecialchars(strip_tags($this->email));
+            $this->address      = htmlspecialchars(strip_tags($this->address ?? '')); // ← add this
 
-            $stmt->bindParam(':student_id', $this->student_id);
-            $stmt->bindParam(':first_name', $this->first_name);
-            $stmt->bindParam(':last_name', $this->last_name);
-            $stmt->bindParam(':middle_name', $this->middle_name);
-            $stmt->bindParam(':course', $this->course);
+            $stmt->bindParam(':student_id',   $this->student_id);
+            $stmt->bindParam(':first_name',   $this->first_name);
+            $stmt->bindParam(':last_name',    $this->last_name);
+            $stmt->bindParam(':middle_name',  $this->middle_name);
+            $stmt->bindParam(':course',       $this->course);
             $stmt->bindParam(':course_level', $this->course_level);
-            $stmt->bindParam(':email', $this->email);
-            $stmt->bindParam(':password', $this->password);
+            $stmt->bindParam(':email',        $this->email);
+            $stmt->bindParam(':password',     $this->password);
+            $stmt->bindParam(':address',      $this->address);  // ← add this
 
             try {
                 $stmt->execute();
@@ -89,7 +92,7 @@
                 $this->id = $row['id'];
                 return $this->id;
             } catch(PDOException $e) {
-                echo json_encode(array('message' => $e->getMessage()));
+                echo json_encode(['message' => $e->getMessage()]);
                 return false;
             }
         }

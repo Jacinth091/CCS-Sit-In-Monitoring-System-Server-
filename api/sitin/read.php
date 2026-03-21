@@ -5,33 +5,37 @@ require_once '../../includes/initialize.php';
 
 try {
     $stmt = $db->prepare("
-        SELECT
+        SELECT 
             sl.id           AS log_id,
+            sl.student_id,
+            sl.lab_id,
             sl.purpose,
             sl.time_in,
+            sl.time_out,
             sl.status,
-            s.student_id,
             s.first_name,
             s.last_name,
             s.profile_pic,
             s.course,
             s.course_level,
-            s.session,
             l.lab_name
         FROM sit_in_logs sl
-        INNER JOIN students     s ON sl.student_id = s.student_id
-        INNER JOIN laboratories l ON sl.lab_id     = l.id
-        WHERE sl.status     = 'ongoing'
-        AND   sl.deleted_at IS NULL
+        JOIN students     s ON sl.student_id = s.student_id
+        JOIN laboratories l ON sl.lab_id     = l.id
+        WHERE sl.deleted_at IS NULL
         ORDER BY sl.time_in DESC
     ");
     $stmt->execute();
-    $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($records as &$rec) {
+        $rec['profile_pic'] = $rec['profile_pic'] ?? '';
+    }
 
     http_response_code(200);
-    echo json_encode($logs);
+    echo json_encode($records);
 
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['message' => 'Failed to fetch active sessions.', 'details' => $e->getMessage()]);
+    echo json_encode(['message' => 'Failed to fetch records.', 'details' => $e->getMessage()]);
 }
