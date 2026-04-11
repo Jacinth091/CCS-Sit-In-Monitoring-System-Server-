@@ -1,4 +1,6 @@
 <?php
+
+    require_once __DIR__ . '/../vendor/autoload.php';
     defined('DS') ? null : define('DS', DIRECTORY_SEPARATOR); // Fixed typo
 
     // defined('SITE_ROOT') ? null : define('SITE_ROOT', DS . 'xampp' . DS . 'htdocs' . DS . 'sitIn');
@@ -12,7 +14,61 @@
     defined('UTIL_PATH')  ? null : define('UTIL_PATH',  SRC_PATH  . DS . 'utils');
 
     require_once(INC_PATH . DS . 'config.php');
+    require_once(INC_PATH . DS . 'validate_token.php');
+    require_once(INC_PATH . DS . 'validator.php');
+    require_once(INC_PATH . DS . 'logger.php');
     require_once(MODEL_PATH . DS . 'student.php');
+    require_once(MODEL_PATH . DS . 'admin.php');
+    require_once(MODEL_PATH . DS . 'sitIn.php');
+    require_once(MODEL_PATH . DS . 'dashboard.php');
+    require_once(MODEL_PATH . DS . 'announcement.php');
 
+    // Log incoming requests if running via CLI server or XAMPP
+    if (isset($_SERVER['REQUEST_METHOD']) && isset($_SERVER['REQUEST_URI'])) {
+        Logger::request($_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI']);
+    }
 
+    function sendError($httpCode, $userMessage, $exception = null) {
+        http_response_code($httpCode);
+        
+        $response = [
+            'status' => 'error',
+            'message' => $userMessage
+        ];
+
+        if ($exception !== null) {
+            $response['debug'] = [
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
+                'sql_error' => $exception->getMessage(),
+                'sql_state' => $exception->getCode() 
+            ];
+        }
+
+        echo json_encode($response);
+        exit(); // Crucial: This stops the script from double-printing JSON
+    }
+
+    /**
+     * Standardized Success Handler for the API
+     */
+    function sendSuccess($httpCode, $message, $data = null) {
+        // 1. Set the HTTP status code (e.g., 200 OK, 201 Created)
+        http_response_code($httpCode);
+        
+        // 2. Build the base response
+        $response = [
+            'status' => 'success',
+            'message' => $message
+        ];
+
+        // 3. If student data was passed, attach it to the response!
+        if ($data !== null) {
+            $response['data'] = $data;
+        }
+
+        // 4. Output and stop
+        echo json_encode($response);
+        exit(); 
+    }
 ?>
