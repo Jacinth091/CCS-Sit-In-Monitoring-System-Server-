@@ -2,6 +2,8 @@
 require_once '../../includes/cors.php';
 require_once '../../includes/initialize.php';
 
+$currentUser = requireAdmin();
+
 $data = json_decode(file_get_contents("php://input"));
 
 if (empty($data->id)) {

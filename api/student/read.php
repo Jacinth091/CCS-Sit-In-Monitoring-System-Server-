@@ -1,6 +1,8 @@
 <?php 
-require_once '../../includes/cors.php'; 
-require_once '../../includes/initialize.php';
+require_once __DIR__ . '../../../includes/cors.php';
+require_once __DIR__ . '../../../includes/initialize.php';
+
+$currentUser = requireAdmin();
 
     //Initialize the Students Model
 
@@ -15,10 +17,12 @@ require_once '../../includes/initialize.php';
             // push the entire row so frontend gets id, course, session, profile_pic, etc.
             array_push($students_arr, $row);
         }
-        http_response_code(200);
-        echo json_encode($students_arr);
+        sendSuccess(200, 'Students retrieved successfully.', $students_arr);
+        // http_response_code(200);
+        // echo json_encode($students_arr);
     } else {
-        http_response_code(404);
-        echo json_encode(array('message' => 'No students found.'));
+        // http_response_code(404);
+        // echo json_encode(array('message' => 'No students found.'));
+        sendError(404, 'No students found.');
     }
 ?>
