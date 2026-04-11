@@ -3,8 +3,15 @@
 require_once '../../includes/cors.php';
 require_once '../../includes/initialize.php';
 
+$currentUser = requireAuth();
+
 $sitIn = new SitIn($db);
 $data  = json_decode(file_get_contents('php://input'));
+
+// Students can only time-in for themselves
+if ($currentUser->role === 'student' && isset($data->student_id) && $data->student_id !== $currentUser->student_id) {
+    sendError(403, 'Access denied. You can only time-in for yourself.');
+}
 
 if (empty($data->student_id) || empty($data->lab_id) || empty($data->purpose)) {
     http_response_code(400);
