@@ -67,14 +67,18 @@
 
             $stmt = $this->conn->prepare($query);
 
-            $this->student_id   = htmlspecialchars(strip_tags($this->student_id));
-            $this->first_name   = htmlspecialchars(strip_tags($this->first_name));
-            $this->last_name    = htmlspecialchars(strip_tags($this->last_name));
-            $this->middle_name  = htmlspecialchars(strip_tags($this->middle_name));
-            $this->course       = htmlspecialchars(strip_tags($this->course));
-            $this->course_level = htmlspecialchars(strip_tags($this->course_level));
-            $this->email        = htmlspecialchars(strip_tags($this->email));
-            $this->address      = htmlspecialchars(strip_tags($this->address ?? '')); // ← add this
+            $this->student_id   = Validator::sanitizeString($this->student_id);
+            $this->first_name   = Validator::sanitizeString($this->first_name);
+            $this->last_name    = Validator::sanitizeString($this->last_name);
+            $this->middle_name  = Validator::sanitizeString($this->middle_name);
+            $this->course       = Validator::sanitizeString($this->course);
+            $this->course_level = Validator::sanitizeString($this->course_level);
+            $this->email        = Validator::sanitizeEmail($this->email);
+            $this->address      = Validator::sanitizeString($this->address ?? ''); 
+
+            if (!Validator::validateEmail($this->email)) {
+                return false;
+            }
 
             $stmt->bindParam(':student_id',   $this->student_id);
             $stmt->bindParam(':first_name',   $this->first_name);
@@ -84,7 +88,7 @@
             $stmt->bindParam(':course_level', $this->course_level);
             $stmt->bindParam(':email',        $this->email);
             $stmt->bindParam(':password',     $this->password);
-            $stmt->bindParam(':address',      $this->address);  // ← add this
+            $stmt->bindParam(':address',      $this->address); 
 
             try {
                 $stmt->execute();
@@ -105,7 +109,7 @@
 
             $stmt = $this->conn->prepare($query);
 
-            $this->student_id = htmlspecialchars(strip_tags($this->student_id));
+            $this->student_id = Validator::sanitizeString($this->student_id);
             $stmt->bindParam(':student_id', $this->student_id);
 
             try {
@@ -127,7 +131,7 @@
 
             $stmt = $this->conn->prepare($query);
 
-            $this->id = htmlspecialchars(strip_tags($this->id));
+            $this->id = Validator::sanitizeString($this->id);
             $stmt->bindParam(':id', $this->id);
 
             try {
@@ -139,74 +143,90 @@
             }
         }
 
-    // UPDATE student profile
-    public function update() {
-        $query = 'UPDATE ' . $this->table . ' SET
-                    first_name   = :first_name,
-                    last_name    = :last_name,
-                    middle_name  = :middle_name,
-                    course       = :course,
-                    course_level = :course_level,
-                    email        = :email,
-                    address      = :address
-                WHERE id = :id';
+        // UPDATE student profile
+        public function update() {
+            $query = 'UPDATE ' . $this->table . ' SET
+                        first_name   = :first_name,
+                        last_name    = :last_name,
+                        middle_name  = :middle_name,
+                        course       = :course,
+                        course_level = :course_level,
+                        email        = :email,
+                        address      = :address
+                    WHERE id = :id';
 
-        $stmt = $this->conn->prepare($query);
+            $stmt = $this->conn->prepare($query);
 
-        $this->first_name   = htmlspecialchars(strip_tags($this->first_name));
-        $this->last_name    = htmlspecialchars(strip_tags($this->last_name));
-        $this->middle_name  = htmlspecialchars(strip_tags($this->middle_name));
-        $this->course       = htmlspecialchars(strip_tags($this->course));
-        $this->course_level = htmlspecialchars(strip_tags($this->course_level));
-        $this->email        = htmlspecialchars(strip_tags($this->email));
-        $this->address      = htmlspecialchars(strip_tags($this->address));
-        $this->id           = htmlspecialchars(strip_tags($this->id));
+            $this->first_name   = Validator::sanitizeString($this->first_name);
+            $this->last_name    = Validator::sanitizeString($this->last_name);
+            $this->middle_name  = Validator::sanitizeString($this->middle_name);
+            $this->course       = Validator::sanitizeString($this->course);
+            $this->course_level = Validator::sanitizeString($this->course_level);
+            $this->email        = Validator::sanitizeEmail($this->email);
+            $this->address      = Validator::sanitizeString($this->address);
+            $this->id           = Validator::sanitizeString($this->id);
 
-        $stmt->bindParam(':first_name',   $this->first_name);
-        $stmt->bindParam(':last_name',    $this->last_name);
-        $stmt->bindParam(':middle_name',  $this->middle_name);
-        $stmt->bindParam(':course',       $this->course);
-        $stmt->bindParam(':course_level', $this->course_level);
-        $stmt->bindParam(':email',        $this->email);
-        $stmt->bindParam(':address',      $this->address);
-        $stmt->bindParam(':id',           $this->id);
+            $stmt->bindParam(':first_name',   $this->first_name);
+            $stmt->bindParam(':last_name',    $this->last_name);
+            $stmt->bindParam(':middle_name',  $this->middle_name);
+            $stmt->bindParam(':course',       $this->course);
+            $stmt->bindParam(':course_level', $this->course_level);
+            $stmt->bindParam(':email',        $this->email);
+            $stmt->bindParam(':address',      $this->address);
+            $stmt->bindParam(':id',           $this->id);
 
-        try {
+            try {
+                $stmt->execute();
+                return true;
+            } catch (PDOException $e) {
+                echo json_encode(['message' => $e->getMessage()]);
+                return false;
+            }
+        }
+
+        // SEARCH students by name or course
+        public function search($keyword) {
+            $query = 'SELECT 
+                        id, student_id, first_name, last_name, middle_name,
+                        course_level, email, course, session, profile_pic, is_active
+                    FROM ' . $this->table . '
+                    WHERE 
+                        first_name   ILIKE :keyword OR
+                        last_name    ILIKE :keyword OR
+                        middle_name  ILIKE :keyword OR
+                        course       ILIKE :keyword OR
+                        course_level ILIKE :keyword
+                    ORDER BY created_at DESC';
+
+            $stmt = $this->conn->prepare($query);
+
+            $keyword = '%' . Validator::sanitizeString($keyword) . '%';
+            $stmt->bindParam(':keyword', $keyword);
+
+            try {
+                $stmt->execute();
+                return $stmt;
+            } catch (PDOException $e) {
+                echo json_encode(['message' => $e->getMessage()]);
+                return false;
+            }
+        }
+
+        public function emailExist(){
+            $query = 'SELECT id FROM ' .$this->table. " WHERE email = :email LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+
+            $this->email = Validator::sanitizeEmail($this->email);
+            $stmt->bindParam(':email', $this->email);
+
             $stmt->execute();
-            return true;
-        } catch (PDOException $e) {
-            echo json_encode(['message' => $e->getMessage()]);
+
+            if($stmt->rowCount() > 0){
+                return true;
+            }
+
             return false;
         }
-    }
-
-    // SEARCH students by name or course
-    public function search($keyword) {
-        $query = 'SELECT 
-                    id, student_id, first_name, last_name, middle_name,
-                    course_level, email, course, session, profile_pic, is_active
-                FROM ' . $this->table . '
-                WHERE 
-                    first_name   ILIKE :keyword OR
-                    last_name    ILIKE :keyword OR
-                    middle_name  ILIKE :keyword OR
-                    course       ILIKE :keyword OR
-                    course_level ILIKE :keyword
-                ORDER BY created_at DESC';
-
-        $stmt = $this->conn->prepare($query);
-
-        $keyword = '%' . htmlspecialchars(strip_tags($keyword)) . '%';
-        $stmt->bindParam(':keyword', $keyword);
-
-        try {
-            $stmt->execute();
-            return $stmt;
-        } catch (PDOException $e) {
-            echo json_encode(['message' => $e->getMessage()]);
-            return false;
-        }
-    }
 
     }
 
