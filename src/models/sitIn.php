@@ -80,8 +80,8 @@ class SitIn {
 
         $stmt = $this->conn->prepare($query);
 
-        $this->student_id = htmlspecialchars(strip_tags($this->student_id));
-        $this->purpose    = htmlspecialchars(strip_tags($this->purpose));
+        $this->student_id = Validator::sanitizeString($this->student_id);
+        $this->purpose    = Validator::sanitizeString($this->purpose);
 
         $stmt->bindParam(':student_id', $this->student_id);
         $stmt->bindParam(':lab_id',     $this->lab_id);
