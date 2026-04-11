@@ -2,6 +2,8 @@
 require_once '../../includes/cors.php'; 
 require_once '../../includes/initialize.php';
 
+requireAdmin();
+
 $student = new Student($db);
 
 // Expect keyword from query string: /search.php?q=john

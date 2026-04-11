@@ -2,10 +2,17 @@
 require_once '../../includes/cors.php'; 
 require_once '../../includes/initialize.php';
 
+$currentUser = requireAuth();
+
 $student = new Student($db);
 
 // Read JSON body from PUT request
 $data = json_decode(file_get_contents("php://input"));
+
+// Students can only update their own profile
+if ($currentUser->role === 'student' && !empty($data->id) && $data->id !== $currentUser->id) {
+    sendError(403, 'Access denied. You can only update your own profile.');
+}
 
 if(
     !empty($data->id) &&
