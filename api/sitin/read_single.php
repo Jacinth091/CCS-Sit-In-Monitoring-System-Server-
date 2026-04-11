@@ -3,6 +3,8 @@
 require_once '../../includes/cors.php';
 require_once '../../includes/initialize.php';
 
+$currentUser = requireAuth();
+
 if (empty($_GET['id'])) {
     http_response_code(400);
     echo json_encode(['message' => 'Record ID is required.']);

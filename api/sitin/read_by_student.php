@@ -3,6 +3,12 @@
 require_once '../../includes/cors.php';
 require_once '../../includes/initialize.php';
 
+$currentUser = requireAuth();
+// Students can only view their own records
+if ($currentUser->role === 'student' && isset($_GET['student_id']) && $_GET['student_id'] !== $currentUser->student_id) {
+    sendError(403, 'Access denied. You can only view your own sit-in records.');
+}
+
 if (empty($_GET['student_id'])) {
     http_response_code(400);
     echo json_encode(['message' => 'Missing student ID.']);
