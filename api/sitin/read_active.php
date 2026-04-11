@@ -3,6 +3,8 @@
 require_once '../../includes/cors.php';
 require_once '../../includes/initialize.php';
 
+requireAdmin();
+
 try {
     $stmt = $db->prepare("
         SELECT
