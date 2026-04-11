@@ -2,6 +2,8 @@
 require_once '../../includes/cors.php';
 require_once '../../includes/initialize.php';
 
+requireAdmin();
+
 try {
     // Reset all sessions to the absolute default value (30) for active students.
     $stmt = $db->prepare('UPDATE students SET session = 30 WHERE is_active = TRUE');
