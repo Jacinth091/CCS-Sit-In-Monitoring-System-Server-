@@ -1,7 +1,7 @@
 <?php
-require_once __DIR__ . '../../../includes/cors.php'; 
-    require_once __DIR__ . '../../../includes/initialize.php';
-    require_once __DIR__ . '../../../includes/validate_token.php';
+require_once __DIR__ . '/../../../includes/cors.php'; 
+require_once __DIR__ . '/../../../includes/initialize.php';
+require_once __DIR__ . '/../../../includes/validate_token.php';
 
 $currentUser = authenticate();
 

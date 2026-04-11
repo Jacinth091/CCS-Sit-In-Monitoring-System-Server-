@@ -1,0 +1,122 @@
+<?php
+/**
+ * GET /api/student/sitin/read.php
+ * Purpose: Return sit-in records, paginated and date-filterable.
+ * - Students can only view their own records.
+ * - Admins can view any student's records by providing a `student_id` query param.
+ */
+
+require_once __DIR__ . '/../../../includes/cors.php';
+require_once __DIR__ . '/../../../includes/initialize.php';
+
+$user = requireAuth(); // Require any authenticated user
+
+$student_id = null;
+
+// Role-based access control
+if ($user->role === 'admin') {
+    if (empty($_GET['student_id'])) {
+        sendError(400, 'Bad Request: student_id is required for admin users.');
+    }
+    $student_id = $_GET['student_id'];
+} else if ($user->role === 'student') {
+    // If a student tries to access another student's records, deny it.
+    if (!empty($_GET['student_id']) && $_GET['student_id'] != $user->student_id) {
+        sendError(403, 'Access Denied: You can only view your own records.');
+    }
+    $student_id = $user->student_id;
+} else {
+    // Should not happen if requireAuth() is working, but as a safeguard.
+    sendError(403, 'Access Denied: Unauthorized role.');
+}
+
+
+// Pagination params
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$per_page = isset($_GET['per_page']) ? min((int)$_GET['per_page'], 50) : 20;
+$offset = ($page - 1) * $per_page;
+
+// Filters
+$date_from = !empty($_GET['date_from']) ? $_GET['date_from'] : null;
+$date_to = !empty($_GET['date_to']) ? $_GET['date_to'] : null;
+$lab_name = !empty($_GET['lab_name']) ? $_GET['lab_name'] : null;
+
+try {
+    $params = [':student_id' => $student_id];
+    
+    $where_conditions = [
+        "sl.student_id = :student_id",
+        "sl.deleted_at IS NULL"
+    ];
+
+    if ($date_from) {
+        $where_conditions[] = "sl.time_in::date >= :date_from::date";
+        $params[':date_from'] = $date_from;
+    }
+    if ($date_to) {
+        $where_conditions[] = "sl.time_in::date <= :date_to::date";
+        $params[':date_to'] = $date_to;
+    }
+    if ($lab_name) {
+        $where_conditions[] = "l.lab_name = :lab_name";
+        $params[':lab_name'] = $lab_name;
+    }
+    
+    $where_clause = "WHERE " . implode(" AND ", $where_conditions);
+
+    // 1. Get the records
+    $query = "
+        SELECT
+            sl.id,
+            sl.purpose,
+            l.lab_name,
+            sl.time_in,
+            sl.time_out,
+            sl.status,
+            CASE
+                WHEN sl.time_out IS NOT NULL THEN
+                    ROUND(EXTRACT(EPOCH FROM (sl.time_out - sl.time_in)) / 60)
+                ELSE NULL
+            END AS duration_minutes,
+            sf.feedback_text,
+            sf.id AS feedback_id,
+            sf.created_at AS feedback_date
+        FROM sit_in_logs sl
+        LEFT JOIN laboratories l ON sl.lab_id = l.id
+        LEFT JOIN admin_feedback sf ON sf.sit_in_id = sl.id
+        {$where_clause}
+        ORDER BY sl.time_in DESC
+        LIMIT :limit OFFSET :offset;
+    ";
+
+    $main_params = $params;
+    $main_params[':limit'] = $per_page;
+    $main_params[':offset'] = $offset;
+
+    $stmt = $db->prepare($query);
+    $stmt->execute($main_params);
+    $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // 2. Get total count for meta
+    $count_query = "
+        SELECT COUNT(sl.id) 
+        FROM sit_in_logs sl
+        LEFT JOIN laboratories l ON sl.lab_id = l.id
+        {$where_clause};
+    ";
+    $count_stmt = $db->prepare($count_query);
+    $count_stmt->execute($params);
+    $total = (int)$count_stmt->fetchColumn();
+
+    $last_page = ceil($total / $per_page);
+
+    sendSuccess(200, 'Sit-in records fetched successfully.', $logs, [
+        'total' => $total,
+        'page' => $page,
+        'per_page' => $per_page,
+        'last_page' => $last_page
+    ]);
+
+} catch (Exception $e) {
+    sendError(500, 'Failed to fetch sit-in records.', $e);
+}
