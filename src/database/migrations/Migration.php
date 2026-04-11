@@ -80,6 +80,41 @@ class Migration {
         }
     }
 
+    public function fresh() {
+        echo "Dropping all tables...\n";
+        
+        try {
+            // More comprehensive query to get all table-like relations in the public schema
+            $query = "SELECT relname FROM pg_class WHERE relkind IN ('r', 'p', 'v', 'm') AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')";
+            $stmt = $this->db->query($query);
+            $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+            echo "Found relations to drop: " . implode(', ', $tables) . "\n";
+
+            if (empty($tables)) {
+                echo "No tables/views found in public schema.\n";
+            } else {
+                foreach ($tables as $table) {
+                    try {
+                        $drop_query = "DROP TABLE IF EXISTS public.\"" . $table . "\" CASCADE";
+                        echo "  → Executing: $drop_query\n";
+                        $this->db->exec($drop_query);
+                    } catch (PDOException $e) {
+                        echo "  [ERROR] Failed to drop table $table: " . $e->getMessage() . "\n";
+                    }
+                }
+                echo "Table drop commands executed.\n\n";
+            }
+        } catch (PDOException $e) {
+            echo "[ERROR] Could not fetch tables: " . $e->getMessage() . "\n";
+        }
+
+        // Re-create the migrations table and run all migrations
+        echo "Running all migrations from scratch...\n";
+        $this->createMigrationsTable();
+        $this->run();
+    }
+
     private function toClassName($filename) {
         // Remove version prefix: 001_create_students_table → create_students_table
         $withoutVersion = preg_replace('/^\d+_/', '', $filename);

@@ -39,7 +39,7 @@ function authenticate() {
 
     // 4. Decode and Verify
     try {
-        $secretKey = $_ENV['JWT_SECRET'];
+        $secretKey = $_ENV['JWT_SECRET'] ?? 'default_secret_key_change_me';
         
         // Note: php-jwt requires the Key object for security
         $decoded = JWT::decode($jwt, new Key($secretKey, 'HS256'));
@@ -69,9 +69,32 @@ function requireAdmin() {
 }
 
 /**
+ * Requires the caller to be an authenticated STUDENT.
+ * Returns the user payload, or kills the request with 403.
+ */
+function requireStudent() {
+    $user = authenticate();
+    if ($user->role !== 'student') {
+        sendError(403, 'Access denied. Students only.');
+    }
+    return $user;
+}
+
+/**
  * Requires any authenticated user (student or admin).
  * Alias for authenticate() — makes intent explicit at the call site.
  */
 function requireAuth() {
     return authenticate();
+}
+
+/**
+ * Requires the user to have one of the allowed roles.
+ */
+function requireRole($allowedRoles = []) {
+    $user = authenticate();
+    if (!in_array($user->role, $allowedRoles)) {
+        sendError(403, 'Access denied. Unauthorized role.');
+    }
+    return $user;
 }

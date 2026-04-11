@@ -18,14 +18,27 @@
     require_once(INC_PATH . DS . 'validator.php');
     require_once(INC_PATH . DS . 'logger.php');
     require_once(MODEL_PATH . DS . 'student.php');
-    require_once(MODEL_PATH . DS . 'admin.php');
     require_once(MODEL_PATH . DS . 'sitIn.php');
     require_once(MODEL_PATH . DS . 'dashboard.php');
     require_once(MODEL_PATH . DS . 'announcement.php');
+    require_once(INC_PATH . DS . 'notifications.php');
 
     // Log incoming requests if running via CLI server or XAMPP
     if (isset($_SERVER['REQUEST_METHOD']) && isset($_SERVER['REQUEST_URI'])) {
         Logger::request($_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI']);
+    }
+
+    /**
+     * Standardized Validation Error Handler
+     */
+    function sendValidationError($errors) {
+        http_response_code(422);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Validation failed',
+            'errors' => $errors
+        ]);
+        exit();
     }
 
     function sendError($httpCode, $userMessage, $exception = null) {
@@ -52,7 +65,7 @@
     /**
      * Standardized Success Handler for the API
      */
-    function sendSuccess($httpCode, $message, $data = null) {
+    function sendSuccess($httpCode, $message, $data = null, $meta = null) {
         // 1. Set the HTTP status code (e.g., 200 OK, 201 Created)
         http_response_code($httpCode);
         
@@ -62,12 +75,17 @@
             'message' => $message
         ];
 
-        // 3. If student data was passed, attach it to the response!
+        // 3. If data was passed, attach it.
         if ($data !== null) {
             $response['data'] = $data;
         }
 
-        // 4. Output and stop
+        // 4. If meta data was passed, attach it.
+        if ($meta !== null) {
+            $response['meta'] = $meta;
+        }
+
+        // 5. Output and stop
         echo json_encode($response);
         exit(); 
     }

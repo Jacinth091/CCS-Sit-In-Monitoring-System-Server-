@@ -1,6 +1,6 @@
 <?php 
-require_once '../../includes/cors.php'; 
-require_once '../../includes/initialize.php';
+require_once __DIR__ . '/../../includes/cors.php'; 
+require_once __DIR__ . '/../../includes/initialize.php';
 
 use Firebase\JWT\JWT;
 
@@ -11,26 +11,25 @@ if (empty($data->student_id) || empty($data->password)) {
 }
 
 try {
-    $secretKey = $_ENV['JWT_SECRET']; 
+    $secretKey = $_ENV['JWT_SECRET'] ?? 'default_secret_key_change_me'; 
     $issuedAt  = time();
 
     // 1. Check if it's an Admin login
-    $admin = new Admin($db);
-    $admin->username = $data->student_id;
-    $adminRow = $admin->login();
+    $envAdminUsername = $_ENV['ADMIN_USERNAME'] ?? 'admin';
+    $envAdminPassword = $_ENV['ADMIN_PASSWORD'] ?? 'admin123';
 
-    if ($adminRow && password_verify($data->password, $adminRow['password'])) {
+    if ($data->student_id === $envAdminUsername && $data->password === $envAdminPassword) {
         $expireAdmin = $issuedAt + (10 * 60 * 60); // 10 hours
 
         $payload = [
             'iat'  => $issuedAt,
             'exp'  => $expireAdmin,
             'data' => [
-                'id'         => $adminRow['id'],
+                'id'         => 0, // Hardcoded ID for admin
                 'role'       => 'admin',
-                'student_id' => $adminRow['username'],
-                'first_name' => $adminRow['first_name'],
-                'last_name'  => $adminRow['last_name']
+                'student_id' => $envAdminUsername,
+                'first_name' => $_ENV['ADMIN_FIRST_NAME'] ?? 'System',
+                'last_name'  => $_ENV['ADMIN_LAST_NAME']  ?? 'Administrator'
             ]
         ];
 
