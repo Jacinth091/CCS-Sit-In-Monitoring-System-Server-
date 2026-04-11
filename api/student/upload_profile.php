@@ -2,6 +2,12 @@
 require_once '../../includes/cors.php'; 
 require_once '../../includes/initialize.php';
 
+$currentUser = requireAuth();
+// Students can only upload their own photo; admins can upload for anyone
+if ($currentUser->role === 'student' && isset($_POST['id']) && $_POST['id'] !== $currentUser->id) {
+    sendError(403, 'Access denied. You can only update your own profile picture.');
+}
+
 // Check if upload directory exists
 $target_dir = "../../uploads/profiles/";
 if (!file_exists($target_dir)) {
