@@ -9,19 +9,21 @@ $student = new Student($db);
 // Read JSON body from PUT request
 $data = json_decode(file_get_contents("php://input"));
 
-// Students can only update their own profile
-if ($currentUser->role === 'student' && !empty($data->id) && $data->id !== $currentUser->id) {
+// If ID is not in the request body, use the authenticated user's ID
+$targetId = !empty($data->id) ? $data->id : $currentUser->id;
+
+// Students can only update their own profile; admins can update for anyone
+if ($currentUser->role === 'student' && $targetId !== $currentUser->id) {
     sendError(403, 'Access denied. You can only update your own profile.');
 }
 
 if(
-    !empty($data->id) &&
+    !empty($targetId) &&
     !empty($data->first_name) &&
     !empty($data->last_name) &&
     !empty($data->email)
 ) {
-    $student->id           = $data->id;
-    $student->student_id   = $data->student_id;
+    $student->id           = $targetId;
     $student->first_name   = $data->first_name;
     $student->last_name    = $data->last_name;
     $student->middle_name  = $data->middle_name  ?? '';
@@ -29,15 +31,14 @@ if(
     $student->course_level = $data->course_level ?? '';
     $student->email        = $data->email;
     $student->address      = $data->address      ?? '';
+    $student->session      = $data->session      ?? 30;
+    $student->profile_pic  = $data->profile_pic  ?? null;
 
     if($student->update()) {
-        http_response_code(200);
-        echo json_encode(['message' => 'Student updated successfully.']);
+        sendSuccess(200, 'Student profile updated successfully.');
     } else {
-        http_response_code(500);
-        echo json_encode(['message' => 'Failed to update student.']);
+        sendError(500, 'Failed to update student profile.');
     }
 } else {
-    http_response_code(400);
-    echo json_encode(['message' => 'Missing required fields.']);
+    sendError(400, 'Required fields are missing (first_name, last_name, email).');
 }

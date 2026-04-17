@@ -18,9 +18,11 @@
         public $session;
         public $course;
         public $address;
+        public $profile_pic;
         public $is_active;
         public $deleted_at;
         public $created_at;
+        public $updated_at;
 
 
         // Dependency Injection of the Database Connection
@@ -43,6 +45,7 @@
                 profile_pic,
                 is_active,
                 created_at,
+                updated_at,
                 deleted_at
                 FROM
                 '. $this->table .'
@@ -60,9 +63,9 @@
         public function create(){
 
             $query = 'INSERT INTO ' . $this->table . ' 
-                (student_id, first_name, last_name, middle_name, course, course_level, email, password, address) 
+                (student_id, first_name, last_name, middle_name, course, course_level, email, password, address, session, profile_pic) 
                 VALUES 
-                (:student_id, :first_name, :last_name, :middle_name, :course, :course_level, :email, :password, :address)
+                (:student_id, :first_name, :last_name, :middle_name, :course, :course_level, :email, :password, :address, :session, :profile_pic)
                 RETURNING id';
 
             $stmt = $this->conn->prepare($query);
@@ -75,6 +78,8 @@
             $this->course_level = Validator::sanitizeString($this->course_level);
             $this->email        = Validator::sanitizeEmail($this->email);
             $this->address      = Validator::sanitizeString($this->address ?? ''); 
+            $this->session      = Validator::isNumeric($this->session) ? (int)$this->session : 30;
+            $this->profile_pic  = $this->profile_pic ?? null;
 
             if (!Validator::validateEmail($this->email)) {
                 return false;
@@ -89,6 +94,8 @@
             $stmt->bindParam(':email',        $this->email);
             $stmt->bindParam(':password',     $this->password);
             $stmt->bindParam(':address',      $this->address); 
+            $stmt->bindParam(':session',      $this->session);
+            $stmt->bindParam(':profile_pic',  $this->profile_pic);
 
             try {
                 $stmt->execute();
@@ -122,9 +129,9 @@
         }
         public function read_single() {
             $query = 'SELECT 
-                        id, first_name, last_name, middle_name,
+                        id, student_id, first_name, last_name, middle_name,
                         course_level, email, session, course,
-                        address, profile_pic, is_active, created_at
+                        address, profile_pic, is_active, created_at, updated_at
                     FROM ' . $this->table . '
                     WHERE id = :id
                     LIMIT 1';
@@ -152,7 +159,10 @@
                         course       = :course,
                         course_level = :course_level,
                         email        = :email,
-                        address      = :address
+                        address      = :address,
+                        session      = :session,
+                        profile_pic  = :profile_pic,
+                        updated_at   = NOW()
                     WHERE id = :id';
 
             $stmt = $this->conn->prepare($query);
@@ -164,6 +174,8 @@
             $this->course_level = Validator::sanitizeString($this->course_level);
             $this->email        = Validator::sanitizeEmail($this->email);
             $this->address      = Validator::sanitizeString($this->address);
+            $this->session      = (int)$this->session;
+            $this->profile_pic  = $this->profile_pic ?? null;
             $this->id           = Validator::sanitizeString($this->id);
 
             $stmt->bindParam(':first_name',   $this->first_name);
@@ -173,6 +185,8 @@
             $stmt->bindParam(':course_level', $this->course_level);
             $stmt->bindParam(':email',        $this->email);
             $stmt->bindParam(':address',      $this->address);
+            $stmt->bindParam(':session',      $this->session);
+            $stmt->bindParam(':profile_pic',  $this->profile_pic);
             $stmt->bindParam(':id',           $this->id);
 
             try {

@@ -3,8 +3,12 @@ require_once __DIR__ . '/../../../includes/cors.php';
 require_once __DIR__ . '/../../../includes/initialize.php';
 
 $currentUser = requireAuth();
+
+// If ID is not in the POST data, use the authenticated user's ID
+$student_id = isset($_POST['id']) ? $_POST['id'] : $currentUser->id;
+
 // Students can only upload their own photo; admins can upload for anyone
-if ($currentUser->role === 'student' && isset($_POST['id']) && $_POST['id'] !== $currentUser->id) {
+if ($currentUser->role === 'student' && $student_id !== $currentUser->id) {
     sendError(403, 'Access denied. You can only update your own profile picture.');
 }
 
@@ -14,8 +18,7 @@ if (!file_exists($target_dir)) {
     mkdir($target_dir, 0777, true);
 }
 
-if(isset($_POST['id']) && isset($_FILES['profile_pic'])) {
-    $student_id = $_POST['id'];
+if(isset($_FILES['profile_pic'])) {
     $file = $_FILES['profile_pic'];
     
     $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -52,5 +55,5 @@ if(isset($_POST['id']) && isset($_FILES['profile_pic'])) {
     }
 } else {
     http_response_code(400);
-    echo json_encode(['message' => 'Missing student ID or image file.']);
+    echo json_encode(['message' => 'Missing image file.']);
 }
