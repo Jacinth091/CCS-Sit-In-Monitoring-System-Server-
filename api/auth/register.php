@@ -8,15 +8,14 @@ $student = new Student($db);
 $data = json_decode(file_get_contents("php://input"));
 try {
     if(        
-        empty($data->student_id) &&
-        empty($data->first_name) &&
-        empty($data->last_name) &&
-        empty($data->email) &&
-        empty($data->address) &&
+        empty($data->student_id) ||
+        empty($data->first_name) ||
+        empty($data->last_name) ||
+        empty($data->email) ||
         empty($data->password)
     )
     {
-        sendError(400, 'Credentials are required.');
+        sendError(400, 'Missing required registration fields.');
     }
 
 
