@@ -18,9 +18,9 @@ try {
                 ROUND(
                     SUM(EXTRACT(EPOCH FROM (time_out - time_in)) / 60)
                     FILTER (WHERE time_out IS NOT NULL)
-                ) / 60.0,
+                ),
                 0
-            )                                                               AS total_hours,
+            )                                                               AS total_minutes,
             (SELECT lab_name FROM laboratories WHERE id = (
                 SELECT lab_id FROM sit_in_logs 
                 WHERE student_id = :student_id 
@@ -38,9 +38,15 @@ try {
     $stmt->execute([':student_id' => $student_id]);
     $stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // Format numbers
+    // Format duration
+    $total_minutes = (int)$stats['total_minutes'];
+    $h = floor($total_minutes / 60);
+    $m = $total_minutes % 60;
+    $stats['total_duration'] = "{$h}h {$m}m";
     $stats['total_sessions'] = (int)$stats['total_sessions'];
-    $stats['total_hours'] = (float)$stats['total_hours'];
+    
+    // Also include total_hours as a float just in case
+    $stats['total_hours'] = round($total_minutes / 60.0, 1);
 
     sendSuccess(200, 'Student stats fetched successfully.', $stats);
 
