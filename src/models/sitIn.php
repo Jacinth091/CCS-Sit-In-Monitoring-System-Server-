@@ -16,7 +16,7 @@ class SitIn {
         $this->conn = $db;
     }
 
-    // GET all records — joins students + laboratories
+    // GET all records — joins students + laboratories + feedback
     public function getAllRecords() {
         $query = 'SELECT
                     sl.id           AS log_id,
@@ -30,10 +30,15 @@ class SitIn {
                     s.course,
                     s.course_level,
                     s.profile_pic,
-                    l.lab_name
+                    l.lab_name,
+                    f.rating AS student_rating,
+                    f.comment AS student_comment,
+                    af.feedback_text AS admin_remark
                   FROM ' . $this->table . ' sl
                   LEFT JOIN students    s ON sl.student_id = s.student_id
                   LEFT JOIN laboratories l ON sl.lab_id    = l.id
+                  LEFT JOIN feedback     f ON f.sit_in_id = sl.id
+                  LEFT JOIN admin_feedback af ON af.sit_in_id = sl.id
                   WHERE sl.deleted_at IS NULL
                   ORDER BY sl.time_in DESC';
 
@@ -56,10 +61,15 @@ class SitIn {
                     s.course,
                     s.course_level,
                     s.profile_pic,
-                    l.lab_name
+                    l.lab_name,
+                    f.rating AS student_rating,
+                    f.comment AS student_comment,
+                    af.feedback_text AS admin_remark
                   FROM ' . $this->table . ' sl
                   LEFT JOIN students     s ON sl.student_id = s.student_id
                   LEFT JOIN laboratories l ON sl.lab_id     = l.id
+                  LEFT JOIN feedback      f ON f.sit_in_id = sl.id
+                  LEFT JOIN admin_feedback af ON af.sit_in_id = sl.id
                   WHERE sl.id = :id
                   AND sl.deleted_at IS NULL
                   LIMIT 1';

@@ -19,10 +19,11 @@ try {
         LEFT JOIN students s ON sl.student_id = s.student_id
         LEFT JOIN laboratories l ON sl.lab_id = l.id
         LEFT JOIN admin_feedback af ON af.sit_in_id = sl.id
+        LEFT JOIN feedback f ON f.sit_in_id = sl.id
         WHERE sl.deleted_at IS NULL
-        AND (:search IS NULL OR s.student_id ILIKE :search OR CONCAT(s.first_name, ' ', s.last_name) ILIKE :search)
-        AND (:status IS NULL OR sl.status = :status)
-        AND (:lab_id IS NULL OR sl.lab_id = :lab_id)
+        AND (:search::text IS NULL OR s.student_id ILIKE :search OR CONCAT(s.first_name, ' ', s.last_name) ILIKE :search)
+        AND (:status::text IS NULL OR sl.status = :status)
+        AND (:lab_id::text IS NULL OR sl.lab_id::text = :lab_id)
     ";
 
     // Count total for pagination meta
@@ -36,7 +37,7 @@ try {
     // Fetch data
     $dataStmt = $db->prepare("
         SELECT 
-            sl.id, 
+            sl.id AS log_id, 
             sl.purpose, 
             sl.time_in, 
             sl.time_out, 
@@ -44,9 +45,15 @@ try {
             sl.student_id,
             s.first_name, 
             s.last_name, 
+            s.middle_name,
+            s.course,
+            s.course_level,
+            s.profile_pic,
             l.lab_name, 
-            af.feedback_text,
-            af.id AS feedback_id
+            af.feedback_text AS admin_remark,
+            af.id AS admin_feedback_id,
+            f.rating AS student_rating,
+            f.comment AS student_comment
         " . $query . "
         ORDER BY sl.time_in DESC 
         LIMIT :limit OFFSET :offset

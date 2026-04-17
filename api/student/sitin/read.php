@@ -78,12 +78,16 @@ try {
                     ROUND(EXTRACT(EPOCH FROM (sl.time_out - sl.time_in)) / 60)
                 ELSE NULL
             END AS duration_minutes,
-            sf.feedback_text,
-            sf.id AS feedback_id,
-            sf.created_at AS feedback_date
+            f.rating AS student_rating,
+            f.comment AS student_comment,
+            f.id AS student_feedback_id,
+            af.feedback_text AS admin_remark,
+            af.id AS admin_feedback_id,
+            af.updated_at AS admin_feedback_date
         FROM sit_in_logs sl
         LEFT JOIN laboratories l ON sl.lab_id = l.id
-        LEFT JOIN admin_feedback sf ON sf.sit_in_id = sl.id
+        LEFT JOIN feedback f ON f.sit_in_id = sl.id
+        LEFT JOIN admin_feedback af ON af.sit_in_id = sl.id
         {$where_clause}
         ORDER BY sl.time_in DESC
         LIMIT :limit OFFSET :offset;
