@@ -85,8 +85,19 @@ class SitInLogSeeder {
             VALUES (:student_id, :lab_id, :purpose, :time_in, :time_out, :status)
         ");
 
+        $updateStmt = $this->db->prepare("
+            UPDATE students 
+            SET session = GREATEST(0, session - 1)
+            WHERE student_id = :student_id
+        ");
+
         foreach ($logs as $log) {
             $stmt->execute($log);
+            
+            // If the log is completed, decrement the student's session count
+            if ($log['status'] === 'completed') {
+                $updateStmt->execute([':student_id' => $log['student_id']]);
+            }
         }
 
         echo "  → " . count($logs) . " sit-in logs seeded.\n";
