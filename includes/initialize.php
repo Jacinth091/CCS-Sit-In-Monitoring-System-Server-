@@ -1,10 +1,10 @@
 <?php
 
     require_once __DIR__ . '/../vendor/autoload.php';
-    defined('DS') ? null : define('DS', DIRECTORY_SEPARATOR); // Fixed typo
+    defined('DS') ? null : define('DS', DIRECTORY_SEPARATOR); 
 
-    // defined('SITE_ROOT') ? null : define('SITE_ROOT', DS . 'xampp' . DS . 'htdocs' . DS . 'sitIn');
-    defined('SITE_ROOT') ? null : define('SITE_ROOT', $_SERVER['DOCUMENT_ROOT'] . DS . 'sitIn');
+    // Use the directory of this file to find the project root reliably
+    defined('SITE_ROOT') ? null : define('SITE_ROOT', dirname(__DIR__));
 
     defined('INC_PATH')   ? null : define('INC_PATH',   SITE_ROOT . DS . 'includes');
     defined('SRC_PATH')   ? null : define('SRC_PATH',   SITE_ROOT . DS . 'src');
