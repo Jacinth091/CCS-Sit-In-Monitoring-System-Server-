@@ -5,3 +5,6 @@
 .DS_Store
 
 /vendor
+/uploads
+/api/uploads/profiles/*
+!/api/uploads/profiles/.gitkeep
