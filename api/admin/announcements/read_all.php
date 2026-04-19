@@ -39,7 +39,7 @@ try {
     $main_params[':offset'] = $offset;
 
     $data_query = "
-        SELECT id, title, content, status, is_pinned, admin_username, created_at, updated_at
+        SELECT id, title, content, status, is_pinned, is_important, admin_username, created_at, updated_at
         FROM announcements
         {$where_clause}
         ORDER BY is_pinned DESC, created_at DESC 

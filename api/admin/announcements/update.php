@@ -11,31 +11,41 @@ if (!isset($_GET['id'])) {
 
 $id = (int)$_GET['id'];
 
-$errors = [];
-if (empty($data->title)) $errors['title'] = 'Title is required.';
-if (empty($data->content)) $errors['content'] = 'Content is required.';
-
-if (!empty($errors)) {
-    sendValidationError($errors);
-}
-
 try {
+    // 1. Fetch current announcement data
+    $stmt = $db->prepare("SELECT * FROM announcements WHERE id = :id AND deleted_at IS NULL");
+    $stmt->execute([':id' => $id]);
+    $current = $stmt->fetch();
+
+    if (!$current) {
+        sendError(404, 'Announcement not found.');
+    }
+
+    // 2. Prepare update data - merge current with new
+    $title = isset($data->title) ? Validator::sanitizeString($data->title) : $current['title'];
+    $content = isset($data->content) ? $data->content : $current['content'];
+    $status = $data->status ?? $current['status'];
+    $is_pinned = isset($data->is_pinned) ? ($data->is_pinned ? 1 : 0) : ($current['is_pinned'] ? 1 : 0);
+    $is_important = isset($data->is_important) ? ($data->is_important ? 1 : 0) : ($current['is_important'] ? 1 : 0);
+
     $stmt = $db->prepare("
         UPDATE announcements 
         SET title = :title, 
             content = :content, 
             status = :status, 
-            is_pinned = :is_pinned, 
+            is_pinned = :is_pinned,
+            is_important = :is_important,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = :id AND deleted_at IS NULL
         RETURNING *
     ");
     
     $stmt->execute([
-        ':title' => Validator::sanitizeString($data->title),
-        ':content' => $data->content,
-        ':status' => $data->status ?? 'published',
-        ':is_pinned' => ($data->is_pinned ?? false) ? 1 : 0,
+        ':title' => $title,
+        ':content' => $content,
+        ':status' => $status,
+        ':is_pinned' => (int)$is_pinned,
+        ':is_important' => (int)$is_important,
         ':id' => $id
     ]);
 

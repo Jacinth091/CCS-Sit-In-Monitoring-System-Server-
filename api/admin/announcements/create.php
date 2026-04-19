@@ -16,10 +16,11 @@ if (!empty($errors)) {
 try {
     $status = $data->status ?? 'published';
     $is_pinned = $data->is_pinned ?? false;
+    $is_important = $data->is_important ?? false;
 
     $stmt = $db->prepare("
-        INSERT INTO announcements (title, content, status, is_pinned, admin_username) 
-        VALUES (:title, :content, :status, :is_pinned, :admin)
+        INSERT INTO announcements (title, content, status, is_pinned, is_important, admin_username) 
+        VALUES (:title, :content, :status, :is_pinned, :is_important, :admin)
         RETURNING *
     ");
     
@@ -28,6 +29,7 @@ try {
         ':content' => $data->content, // Content might have HTML if using a rich text editor later
         ':status' => $status,
         ':is_pinned' => $is_pinned ? 1 : 0,
+        ':is_important' => $is_important ? 1 : 0,
         ':admin' => $admin->student_id
     ]);
 
