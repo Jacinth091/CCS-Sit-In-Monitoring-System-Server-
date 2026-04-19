@@ -39,6 +39,7 @@ try {
             content,
             status,
             is_pinned,
+            is_important,
             admin_username,
             created_at,
             updated_at

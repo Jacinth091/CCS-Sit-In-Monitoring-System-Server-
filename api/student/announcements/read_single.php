@@ -22,6 +22,7 @@ try {
             title,
             content AS body,
             is_pinned,
+            is_important,
             created_at,
             updated_at,
             admin_username AS author_name

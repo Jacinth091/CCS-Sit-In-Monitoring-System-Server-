@@ -68,6 +68,7 @@ try {
     $query = "
         SELECT
             sl.id,
+            sl.id AS log_id,
             sl.purpose,
             l.lab_name,
             sl.time_in,
