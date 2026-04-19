@@ -22,13 +22,24 @@ class Dashboard {
         $stmt = $this->conn->query("SELECT COUNT(*) as count FROM sit_in_logs");
         $stats['total_sitin'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
-        // 4. Purpose Distribution
-        $stmt = $this->conn->query("SELECT COALESCE(NULLIF(TRIM(purpose), ''), 'Unknown') as label, COUNT(*) as count FROM sit_in_logs GROUP BY label ORDER BY count DESC LIMIT 5");
-        $purposes = array();
-        while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            array_push($purposes, $row);
+        // 4. Purpose Distribution (Top 5 + Others)
+        $stmt = $this->conn->query("
+            SELECT COALESCE(NULLIF(TRIM(purpose), ''), 'Unknown') as label, COUNT(*) as count 
+            FROM sit_in_logs 
+            GROUP BY label 
+            ORDER BY count DESC
+        ");
+        
+        $allPurposes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $topPurposes = array_slice($allPurposes, 0, 5);
+        $remainingPurposes = array_slice($allPurposes, 5);
+        
+        if (!empty($remainingPurposes)) {
+            $othersCount = array_sum(array_column($remainingPurposes, 'count'));
+            array_push($topPurposes, ['label' => 'Others', 'count' => $othersCount]);
         }
-        $stats['purpose_distribution'] = $purposes;
+        
+        $stats['purpose_distribution'] = $topPurposes;
 
         // Student Course Distribution
         $stmt = $this->conn->query("SELECT course as label, COUNT(*) as count FROM students WHERE is_active = TRUE AND course IS NOT NULL AND TRIM(course) != '' GROUP BY course ORDER BY count DESC");
@@ -71,6 +82,23 @@ class Dashboard {
             array_push($labStats, $row);
         }
         $stats['lab_usage'] = $labStats;
+
+        // 8. Dynamic Analytics (Peak Lab & Avg Duration)
+        $stats['peak_lab'] = !empty($labStats) ? $labStats[0]['label'] : 'N/A';
+        
+        $stmt = $this->conn->query("
+            SELECT AVG(EXTRACT(EPOCH FROM (time_out - time_in)) / 60) as avg_min 
+            FROM sit_in_logs 
+            WHERE time_out IS NOT NULL
+        ");
+        $avgRes = $stmt->fetch(PDO::FETCH_ASSOC);
+        $avgMin = $avgRes['avg_min'] ?? 0;
+        
+        if ($avgMin >= 60) {
+            $stats['avg_duration'] = round($avgMin / 60, 1) . ' Hours';
+        } else {
+            $stats['avg_duration'] = round($avgMin) . ' Mins';
+        }
 
         return $stats;
     }
