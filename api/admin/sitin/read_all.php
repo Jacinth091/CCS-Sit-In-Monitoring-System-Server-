@@ -12,6 +12,8 @@ try {
     $search = isset($_GET['search']) ? '%' . trim($_GET['search']) . '%' : null;
     $status = isset($_GET['status']) ? $_GET['status'] : null;
     $lab_id = isset($_GET['lab_id']) ? $_GET['lab_id'] : null;
+    $purpose = isset($_GET['purpose']) ? $_GET['purpose'] : null;
+    $date = isset($_GET['date']) ? $_GET['date'] : null;
 
     // Base query
     $query = "
@@ -21,9 +23,11 @@ try {
         LEFT JOIN admin_feedback af ON af.sit_in_id = sl.id
         LEFT JOIN feedback f ON f.sit_in_id = sl.id
         WHERE sl.deleted_at IS NULL
-        AND (:search::text IS NULL OR s.student_id ILIKE :search OR CONCAT(s.first_name, ' ', s.last_name) ILIKE :search)
+        AND (:search::text IS NULL OR s.student_id ILIKE :search OR CONCAT(s.first_name, ' ', s.last_name) ILIKE :search OR sl.purpose ILIKE :search)
         AND (:status::text IS NULL OR sl.status = :status)
         AND (:lab_id::text IS NULL OR sl.lab_id::text = :lab_id)
+        AND (:purpose::text IS NULL OR sl.purpose = :purpose)
+        AND (:date::text IS NULL OR sl.time_in::date = :date::date)
     ";
 
     // Count total for pagination meta
@@ -31,13 +35,16 @@ try {
     $countStmt->bindValue(':search', $search);
     $countStmt->bindValue(':status', $status);
     $countStmt->bindValue(':lab_id', $lab_id);
+    $countStmt->bindValue(':purpose', $purpose);
+    $countStmt->bindValue(':date', $date);
     $countStmt->execute();
     $totalRecords = (int)$countStmt->fetchColumn();
 
     // Fetch data
     $dataStmt = $db->prepare("
         SELECT 
-            sl.id AS log_id, 
+            sl.id, 
+            sl.id AS log_id,
             sl.purpose, 
             sl.time_in, 
             sl.time_out, 
@@ -62,6 +69,8 @@ try {
     $dataStmt->bindValue(':search', $search);
     $dataStmt->bindValue(':status', $status);
     $dataStmt->bindValue(':lab_id', $lab_id);
+    $dataStmt->bindValue(':purpose', $purpose);
+    $dataStmt->bindValue(':date', $date);
     $dataStmt->bindValue(':limit', $per_page, PDO::PARAM_INT);
     $dataStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $dataStmt->execute();

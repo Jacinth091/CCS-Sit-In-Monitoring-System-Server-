@@ -8,6 +8,7 @@ requireAdmin();
 try {
     $stmt = $db->prepare("
         SELECT
+            sl.id,
             sl.id           AS log_id,
             sl.purpose,
             sl.time_in,
