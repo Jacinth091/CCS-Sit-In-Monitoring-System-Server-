@@ -11,6 +11,7 @@ class SitIn {
     public $time_in;
     public $time_out;
     public $status;
+    public $pc_number;
 
     public function __construct($db) {
         $this->conn = $db;
@@ -24,13 +25,15 @@ class SitIn {
                     sl.time_in,
                     sl.time_out,
                     sl.status,
+                    sl.pc_number,
                     s.student_id,
                     s.first_name,
                     s.last_name,
                     s.course,
                     s.course_level,
                     s.profile_pic,
-                    l.lab_name,
+                    l.name,
+                    l.lab_code,
                     f.rating AS student_rating,
                     f.comment AS student_comment,
                     af.feedback_text AS admin_remark
@@ -55,13 +58,15 @@ class SitIn {
                     sl.time_in,
                     sl.time_out,
                     sl.status,
+                    sl.pc_number,
                     s.student_id,
                     s.first_name,
                     s.last_name,
                     s.course,
                     s.course_level,
                     s.profile_pic,
-                    l.lab_name,
+                    l.name,
+                    l.lab_code,
                     f.rating AS student_rating,
                     f.comment AS student_comment,
                     af.feedback_text AS admin_remark
@@ -83,19 +88,21 @@ class SitIn {
     // POST — time in (create new sit-in session)
     public function timeIn() {
         $query = 'INSERT INTO ' . $this->table . '
-                    (student_id, lab_id, purpose, time_in, status)
+                    (student_id, lab_id, purpose, pc_number, time_in, status)
                   VALUES
-                    (:student_id, :lab_id, :purpose, NOW(), \'ongoing\')
+                    (:student_id, :lab_id, :purpose, :pc_number, NOW(), \'ongoing\')
                   RETURNING id';
 
         $stmt = $this->conn->prepare($query);
 
         $this->student_id = Validator::sanitizeString($this->student_id);
         $this->purpose    = Validator::sanitizeString($this->purpose);
+        $this->pc_number  = Validator::sanitizeString($this->pc_number);
 
         $stmt->bindParam(':student_id', $this->student_id);
         $stmt->bindParam(':lab_id',     $this->lab_id);
         $stmt->bindParam(':purpose',    $this->purpose);
+        $stmt->bindParam(':pc_number',  $this->pc_number);
 
         try {
             $stmt->execute();
@@ -138,7 +145,8 @@ class SitIn {
                     sl.purpose,
                     sl.time_in,
                     sl.status,
-                    l.lab_name
+                    l.name,
+                    l.lab_code
                   FROM ' . $this->table . ' sl
                   LEFT JOIN laboratories l ON sl.lab_id = l.id
                   WHERE sl.student_id = :student_id
@@ -150,6 +158,35 @@ class SitIn {
         $stmt->bindParam(':student_id', $this->student_id);
         $stmt->execute();
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function isPcInUse($lab_id, $pc_number) {
+        $query = "SELECT COUNT(*) FROM " . $this->table . " 
+                  WHERE lab_id = :lab_id 
+                  AND pc_number = :pc_number 
+                  AND status = 'ongoing' 
+                  AND deleted_at IS NULL";
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([
+            ':lab_id' => $lab_id,
+            ':pc_number' => $pc_number
+        ]);
+        
+        return $stmt->fetchColumn() > 0;
+    }
+
+    public function getOccupiedPcs($lab_id) {
+        $query = "SELECT pc_number FROM " . $this->table . " 
+                  WHERE lab_id = :lab_id 
+                  AND status = 'ongoing' 
+                  AND deleted_at IS NULL 
+                  AND pc_number IS NOT NULL";
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([':lab_id' => $lab_id]);
+
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
     // Soft delete
@@ -168,5 +205,21 @@ class SitIn {
             echo json_encode(['message' => $e->getMessage()]);
             return false;
         }
+    }
+
+    public function getStudentSummary($student_id) {
+        $stmt = $this->conn->prepare("
+            SELECT 
+                COUNT(*) AS total_sessions,
+                COALESCE(SUM(EXTRACT(EPOCH FROM (time_out - time_in)) / 60), 0) AS total_minutes,
+                COALESCE(AVG(EXTRACT(EPOCH FROM (time_out - time_in)) / 60), 0) AS avg_minutes,
+                COALESCE(MAX(EXTRACT(EPOCH FROM (time_out - time_in)) / 60), 0) AS longest_minutes
+            FROM sit_in_logs
+            WHERE student_id = :student_id 
+              AND time_out IS NOT NULL 
+              AND deleted_at IS NULL
+        ");
+        $stmt->execute([':student_id' => $student_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 }
