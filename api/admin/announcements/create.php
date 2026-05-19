@@ -14,6 +14,7 @@ if (!empty($errors)) {
 }
 
 try {
+    $auditLog = new AuditLog($db);
     $status = $data->status ?? 'published';
     $is_pinned = $data->is_pinned ?? false;
     $is_important = $data->is_important ?? false;
@@ -34,6 +35,18 @@ try {
     ]);
 
     $announcement = $stmt->fetch();
+
+    // Log to unified audit log
+    $auditLog->write(
+        'Announcement created',
+        $admin->student_id,
+        'admin',
+        "Admin created announcement: \"{$announcement['title']}\"",
+        'announcement',
+        $announcement['id'],
+        null,
+        "Created announcement \"{$announcement['title']}\""
+    );
 
     // 4. Notify all students if published
     if ($status === 'published') {

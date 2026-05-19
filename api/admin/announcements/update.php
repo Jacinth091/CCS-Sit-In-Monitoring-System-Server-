@@ -12,6 +12,7 @@ if (!isset($_GET['id'])) {
 $id = (int)$_GET['id'];
 
 try {
+    $auditLog = new AuditLog($db);
     // 1. Fetch current announcement data
     $stmt = $db->prepare("SELECT * FROM announcements WHERE id = :id AND deleted_at IS NULL");
     $stmt->execute([':id' => $id]);
@@ -55,10 +56,20 @@ try {
         sendError(404, 'Announcement not found.');
     }
 
+    // Log to unified audit log
+    $auditLog->write(
+        'Announcement updated',
+        $admin->student_id,
+        'admin',
+        "Admin updated announcement #$id: \"{$announcement['title']}\"",
+        'announcement',
+        (string)$id,
+        null,
+        "Updated announcement \"{$announcement['title']}\""
+    );
+
     // 4. Notify students if it was just published
     if ($announcement['status'] === 'published') {
-        // You might want to check if it was already published before, 
-        // but for now we follow the plan to notify on publish.
         notify_all_students(
             $db,
             'announcement',
