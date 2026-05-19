@@ -6,50 +6,98 @@ class LaboratorySeeder {
     public function __construct($db) { $this->db = $db; }
 
     public function run() {
+        // Clear existing labs for fresh seed
+        $this->db->exec("TRUNCATE TABLE laboratories RESTART IDENTITY CASCADE");
+
         $labs = [
             [
-                'lab_name'     => 'CCS Lab 1',
-                'capacity'     => 40,
-                'is_available' => true,
+                'name'     => 'Advanced Programming Lab',
+                'lab_code' => 'LAB 526',
+                'capacity' => 40,
+                'is_active' => true,
+                'lab_type' => 'Programming',
+                'description' => 'Equipped with high-end workstations for advanced software development.'
             ],
             [
-                'lab_name'     => 'CCS Lab 2',
-                'capacity'     => 40,
-                'is_available' => true,
+                'name'     => 'Cisco Networking Lab',
+                'lab_code' => 'LAB 525',
+                'capacity' => 30,
+                'is_active' => true,
+                'lab_type' => 'Networking',
+                'description' => 'Specialized lab with Cisco routers, switches, and networking equipment.'
             ],
             [
-                'lab_name'     => 'CCS Lab 3',
-                'capacity'     => 30,
-                'is_available' => true,
+                'name'     => 'Multimedia and Graphics Lab',
+                'lab_code' => 'LAB 528',
+                'capacity' => 35,
+                'is_active' => true,
+                'lab_type' => 'Multimedia',
+                'description' => 'Optimized for graphics design, video editing, and 3D modeling.'
             ],
             [
-                'lab_name'     => 'CCS Lab 4',
-                'capacity'     => 30,
-                'is_available' => true,
+                'name'     => 'Web Development Lab',
+                'lab_code' => 'LAB 527',
+                'capacity' => 40,
+                'is_active' => true,
+                'lab_type' => 'Web',
+                'description' => 'General purpose lab focused on modern web technologies.'
             ],
             [
-                'lab_name'     => 'MAC Lab',
-                'capacity'     => 25,
-                'is_available' => true,
+                'name'     => 'Software Engineering Lab',
+                'lab_code' => 'LAB 529',
+                'capacity' => 40,
+                'is_active' => true,
+                'lab_type' => 'General Purpose',
+                'description' => 'Collaborative space for software design and project management.'
             ],
             [
-                'lab_name'     => 'Network Lab',
-                'capacity'     => 20,
-                'is_available' => false, 
+                'name'     => 'Database Systems Lab',
+                'lab_code' => 'LAB 530',
+                'capacity' => 30,
+                'is_active' => true,
+                'lab_type' => 'Database',
+                'description' => 'Dedicated to SQL, NoSQL, and big data processing.'
+            ],
+            [
+                'name'     => 'Cybersecurity Lab',
+                'lab_code' => 'LAB 540',
+                'capacity' => 25,
+                'is_active' => true,
+                'lab_type' => 'Security',
+                'description' => 'Isolated environment for security auditing and ethical hacking.'
+            ],
+            [
+                'name'     => 'Mobile Computing Lab',
+                'lab_code' => 'LAB 542',
+                'capacity' => 30,
+                'is_active' => true,
+                'lab_type' => 'Mobile',
+                'description' => 'Equipped for Android and iOS app development.'
+            ],
+            [
+                'name'     => 'Artificial Intelligence Lab',
+                'lab_code' => 'LAB 544',
+                'capacity' => 20,
+                'is_active' => true,
+                'lab_type' => 'Research',
+                'description' => 'High-performance computing for AI, ML, and data science.'
             ],
         ];
 
         $stmt = $this->db->prepare("
-            INSERT INTO laboratories (lab_name, capacity, is_available)
-            VALUES (:lab_name, :capacity, :is_available)
-            ON CONFLICT DO NOTHING
+            INSERT INTO laboratories (name, lab_code, capacity, is_active, lab_type, description)
+            VALUES (:name, :lab_code, :capacity, :is_active, :lab_type, :description)
         ");
 
         foreach ($labs as $lab) {
-            $stmt->bindValue(':lab_name', $lab['lab_name'], PDO::PARAM_STR);
-            $stmt->bindValue(':capacity', (int) $lab['capacity'], PDO::PARAM_INT);
-            $stmt->bindValue(':is_available', (bool) $lab['is_available'], PDO::PARAM_BOOL);
-            $stmt->execute();
+            $stmt->execute([
+                ':name'        => $lab['name'],
+                ':lab_code'    => $lab['lab_code'],
+                ':capacity'    => $lab['capacity'],
+                ':is_active'   => $lab['is_active'],
+                ':lab_type'    => $lab['lab_type'],
+                ':description' => $lab['description'],
+            ]);
         }
 
         echo "  → " . count($labs) . " laboratories seeded.\n";
