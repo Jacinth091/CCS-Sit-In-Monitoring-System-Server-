@@ -17,10 +17,17 @@
     require_once(INC_PATH . DS . 'validate_token.php');
     require_once(INC_PATH . DS . 'validator.php');
     require_once(INC_PATH . DS . 'logger.php');
-    require_once(MODEL_PATH . DS . 'student.php');
-    require_once(MODEL_PATH . DS . 'sitIn.php');
-    require_once(MODEL_PATH . DS . 'dashboard.php');
-    require_once(MODEL_PATH . DS . 'announcement.php');
+    require_once(MODEL_PATH . DS . 'Student.php');
+    require_once(MODEL_PATH . DS . 'SitIn.php');
+    require_once(MODEL_PATH . DS . 'Dashboard.php');
+    require_once(MODEL_PATH . DS . 'Announcement.php');
+    require_once(MODEL_PATH . DS . 'Report.php');
+    require_once(MODEL_PATH . DS . 'Reservation.php');
+    require_once(MODEL_PATH . DS . 'Software.php');
+    require_once(MODEL_PATH . DS . 'Laboratory.php');
+    require_once(MODEL_PATH . DS . 'Testimonial.php');
+    require_once(MODEL_PATH . DS . 'PC.php');
+    require_once(MODEL_PATH . DS . 'AuditLog.php');
     require_once(INC_PATH . DS . 'notifications.php');
 
     // Log incoming requests if running via CLI server or XAMPP
