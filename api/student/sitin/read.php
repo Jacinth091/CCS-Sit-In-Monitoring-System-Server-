@@ -39,7 +39,7 @@ $offset = ($page - 1) * $per_page;
 // Filters
 $date_from = !empty($_GET['date_from']) ? $_GET['date_from'] : null;
 $date_to = !empty($_GET['date_to']) ? $_GET['date_to'] : null;
-$lab_name = !empty($_GET['lab_name']) ? $_GET['lab_name'] : null;
+$name = !empty($_GET['name']) ? $_GET['name'] : null;
 
 try {
     $params = [':student_id' => $student_id];
@@ -57,9 +57,9 @@ try {
         $where_conditions[] = "sl.time_in::date <= :date_to::date";
         $params[':date_to'] = $date_to;
     }
-    if ($lab_name) {
-        $where_conditions[] = "l.lab_name = :lab_name";
-        $params[':lab_name'] = $lab_name;
+    if ($name) {
+        $where_conditions[] = "l.name = :name";
+        $params[':name'] = $name;
     }
     
     $where_clause = "WHERE " . implode(" AND ", $where_conditions);
@@ -70,7 +70,9 @@ try {
             sl.id,
             sl.id AS log_id,
             sl.purpose,
-            l.lab_name,
+            l.name,
+            l.lab_code,
+            sl.pc_number,
             sl.time_in,
             sl.time_out,
             sl.status,
