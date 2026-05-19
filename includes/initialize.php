@@ -3,6 +3,9 @@
     require_once __DIR__ . '/../vendor/autoload.php';
     defined('DS') ? null : define('DS', DIRECTORY_SEPARATOR); 
 
+    // Set timezone to prevent server UTC offset issues
+    date_default_timezone_set('Asia/Manila');
+
     // Use the directory of this file to find the project root reliably
     defined('SITE_ROOT') ? null : define('SITE_ROOT', dirname(__DIR__));
 

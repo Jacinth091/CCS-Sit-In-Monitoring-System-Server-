@@ -61,6 +61,11 @@ try {
         $pdf->AddPage();
 
         // ── Title ──
+        $pdf->SetFont('helvetica', 'B', 12);
+        $pdf->Cell(0, 6, 'University Of Cebu Main Campus', 0, 1, 'C');
+        $pdf->Cell(0, 6, 'College Of Computer Studies', 0, 1, 'C');
+        $pdf->Ln(2);
+
         $pdf->SetFont('helvetica', 'B', 16);
         $pdf->Cell(0, 10, 'CCS Sit-In Monitoring — Usage Report', 0, 1, 'C');
         $pdf->SetFont('helvetica', '', 9);

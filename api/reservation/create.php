@@ -12,6 +12,15 @@ if (empty($data['lab_id']) || empty($data['reserved_date']) || empty($data['time
 }
 
 try {
+    // Check if the student has remaining sessions
+    $stmt = $db->prepare("SELECT session FROM students WHERE student_id = :student_id");
+    $stmt->execute([':student_id' => $student->student_id]);
+    $studentData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$studentData || (int)$studentData['session'] <= 0) {
+        sendError(403, "You do not have any remaining sessions. Please contact the administrator to reset your sessions.");
+    }
+
     $resModel = new Reservation($db);
 
     if (!$resModel->isReservationsEnabled()) {

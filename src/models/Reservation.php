@@ -225,4 +225,86 @@ class Reservation {
         $stmt->bindParam(':val', $val);
         return $stmt->execute();
     }
+
+    public function getById($id) {
+        $query = "SELECT * FROM " . $this->table . " WHERE id = :id AND deleted_at IS NULL";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':id', $id);
+        $stmt->execute();
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function convertToSitIn($reservationId) {
+        $reservation = $this->getById($reservationId);
+        if (!$reservation) {
+            throw new Exception("Reservation not found.", 404);
+        }
+        if ($reservation['status'] !== 'approved') {
+            throw new Exception("Reservation is not approved.", 404);
+        }
+
+        $reservedDate = $reservation['reserved_date'];
+        $today = date('Y-m-d');
+        // Let it pass if the date string doesn't perfectly match today strictly due to timezone offsets, 
+        // as the time arithmetic below handles the 15-minute buffer more accurately.
+        
+        $reservedTimeStr = $reservedDate . ' ' . $reservation['reserved_time'];
+        $reservedTime = strtotime($reservedTimeStr);
+        $currentTime = time();
+        
+        // Allow starting the session up to 15 minutes early, and end it up to 15 mins late
+        $earliestStart = $reservedTime - (15 * 60);
+        $slotEndTime = $reservedTime + (2 * 3600);
+        $latestStart = $slotEndTime + (15 * 60);
+
+        if ($currentTime < $earliestStart) {
+            throw new Exception("This reservation's time slot has not started yet.", 400);
+        }
+        if ($currentTime > $latestStart) {
+            throw new Exception("This reservation's time slot has already passed.", 400);
+        }
+
+        // Check if student has remaining sessions
+        $stmtCheck = $this->conn->prepare("SELECT session FROM students WHERE student_id = :student_id");
+        $stmtCheck->execute([':student_id' => $reservation['student_id']]);
+        $studentData = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+        if (!$studentData || (int)$studentData['session'] <= 0) {
+            throw new Exception("Student has no remaining sessions left to convert this reservation.", 403);
+        }
+
+        // Check if already converted
+        $query = "SELECT COUNT(*) FROM sit_in_logs WHERE reservation_id = :res_id";
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([':res_id' => $reservationId]);
+        if ($stmt->fetchColumn() > 0) {
+            throw new Exception("A sit-in session already exists for this reservation.", 409);
+        }
+
+        try {
+            $this->conn->beginTransaction();
+
+            $insertQuery = "INSERT INTO sit_in_logs (student_id, lab_id, pc_number, purpose, status, reservation_id, time_in) 
+                            VALUES (:student_id, :lab_id, :pc_number, :purpose, 'ongoing', :res_id, NOW()) RETURNING id";
+            $insStmt = $this->conn->prepare($insertQuery);
+            $insStmt->execute([
+                ':student_id' => $reservation['student_id'],
+                ':lab_id' => $reservation['lab_id'],
+                ':pc_number' => $reservation['pc_number'],
+                ':purpose' => $reservation['purpose'],
+                ':res_id' => $reservationId
+            ]);
+            $sitInId = $insStmt->fetchColumn();
+
+            $updateQuery = "UPDATE " . $this->table . " SET status = 'fulfilled', updated_at = NOW() WHERE id = :id";
+            $updStmt = $this->conn->prepare($updateQuery);
+            $updStmt->execute([':id' => $reservationId]);
+
+            $this->conn->commit();
+            return $sitInId;
+        } catch (Exception $e) {
+            $this->conn->rollBack();
+            throw $e;
+        }
+    }
 }
