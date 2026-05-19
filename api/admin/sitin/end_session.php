@@ -16,7 +16,7 @@ if (empty($data->log_id)) {
 try {
     // Fetch log
     $stmt = $db->prepare("
-        SELECT sl.status, sl.student_id, l.lab_name
+        SELECT sl.status, sl.student_id, l.name
         FROM sit_in_logs sl
         LEFT JOIN laboratories l ON sl.lab_id = l.id
         WHERE sl.id = :log_id 
@@ -60,7 +60,7 @@ try {
         $admin->student_id,
         'sit_in',
         'Session Ended by Admin',
-        "Your sit-in session in {$log['lab_name']} was ended by an admin at {$time}.",
+        "Your sit-in session in {$log['name']} was ended by an admin at {$time}.",
         $data->log_id,
         'sit_in_log'
     );
