@@ -13,11 +13,33 @@ if (empty($data->id)) {
 }
 
 try {
+    $auditLog = new AuditLog($db);
     $db->beginTransaction();
+
+    // Get student details for logging
+    $stmt = $db->prepare("SELECT student_id, first_name, last_name FROM students WHERE id = :id");
+    $stmt->execute([':id' => $data->id]);
+    $student = $stmt->fetch();
 
     // Perform a soft delete by marking inactive and recording the timestamp
     $stmt = $db->prepare('UPDATE students SET is_active = FALSE, deleted_at = CURRENT_TIMESTAMP WHERE id = :id');
     if ($stmt->execute([':id' => $data->id])) {
+        
+        $name = ($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? '');
+        $sid = $student['student_id'] ?? 'Unknown';
+
+        // Log to unified audit log
+        $auditLog->write(
+            'Student deactivated',
+            $currentUser->student_id,
+            'admin',
+            "Admin deactivated student account: $name ($sid)",
+            'student',
+            (string)$sid,
+            null,
+            "Deactivated student $sid"
+        );
+
         $db->commit();
         http_response_code(200);
         echo json_encode(['message' => 'Student successfully deactivated.']);

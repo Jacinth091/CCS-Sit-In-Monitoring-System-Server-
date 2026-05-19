@@ -20,7 +20,9 @@ try {
             s.course,
             s.course_level,
             s.session,
-            l.lab_name
+            l.name,
+            l.lab_code,
+            sl.pc_number
         FROM sit_in_logs sl
         INNER JOIN students     s ON sl.student_id = s.student_id
         INNER JOIN laboratories l ON sl.lab_id     = l.id

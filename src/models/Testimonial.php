@@ -1,0 +1,77 @@
+<?php
+
+class Testimonial {
+    private $conn;
+    private $table = 'testimonials';
+
+    public function __construct($db) {
+        $this->conn = $db;
+    }
+
+    public function create($student_id, $content, $rating = 5, $is_anonymous = true) {
+        $query = "INSERT INTO " . $this->table . " (student_id, content, rating, is_anonymous) VALUES (:student_id, :content, :rating, :is_anonymous)";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':student_id', $student_id);
+        $stmt->bindParam(':content', $content);
+        $stmt->bindParam(':rating', $rating);
+        $stmt->bindParam(':is_anonymous', $is_anonymous, PDO::PARAM_BOOL);
+        return $stmt->execute();
+    }
+
+    public function read($include_unapproved = false) {
+        $query = "SELECT t.*, s.first_name, s.last_name, s.profile_pic, s.course, s.course_level 
+                  FROM " . $this->table . " t
+                  JOIN students s ON t.student_id = s.student_id";
+        
+        if (!$include_unapproved) {
+            $query .= " WHERE t.is_approved = TRUE AND t.deleted_at IS NULL";
+        } else {
+            $query .= " WHERE t.deleted_at IS NULL";
+        }
+
+        $query .= " ORDER BY t.created_at DESC";
+        
+        $stmt = $this->conn->query($query);
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Mask names for anonymous testimonials if it's a public view
+        if (!$include_unapproved) {
+            return array_map(function($row) {
+                if (isset($row['is_anonymous']) && $row['is_anonymous']) {
+                    $row['first_name'] = 'Anonymous';
+                    $row['last_name'] = 'Student';
+                    $row['profile_pic'] = null;
+                    $row['course'] = 'Verified CCS Student';
+                    $row['course_level'] = '';
+                    unset($row['student_id']);
+                }
+                return $row;
+            }, $results);
+        }
+
+        return $results;
+    }
+
+    public function getByStudent($student_id) {
+        $query = "SELECT * FROM " . $this->table . " WHERE student_id = :student_id AND deleted_at IS NULL ORDER BY created_at DESC";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':student_id', $student_id);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function updateStatus($id, $is_approved) {
+        $query = "UPDATE " . $this->table . " SET is_approved = :is_approved, updated_at = CURRENT_TIMESTAMP WHERE id = :id";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':is_approved', $is_approved, PDO::PARAM_BOOL);
+        $stmt->bindParam(':id', $id);
+        return $stmt->execute();
+    }
+
+    public function delete($id) {
+        $query = "UPDATE " . $this->table . " SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':id', $id);
+        return $stmt->execute();
+    }
+}

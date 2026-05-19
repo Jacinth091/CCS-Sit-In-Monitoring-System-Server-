@@ -25,7 +25,7 @@ try {
             'iat'  => $issuedAt,
             'exp'  => $expireAdmin,
             'data' => [
-                'id'         => 0, // Hardcoded ID for admin
+                'id'         => 999, // Changed from 0 to avoid 'falsy' issues
                 'role'       => 'admin',
                 'student_id' => $envAdminUsername,
                 'first_name' => $_ENV['ADMIN_FIRST_NAME'] ?? 'System',

@@ -41,17 +41,12 @@ function authenticate() {
     try {
         $secretKey = $_ENV['JWT_SECRET'] ?? 'default_secret_key_change_me';
         
-        // Note: php-jwt requires the Key object for security
         $decoded = JWT::decode($jwt, new Key($secretKey, 'HS256'));
-        
-        // Return the 'data' array we packed into the payload during login
         return $decoded->data; 
 
     } catch (ExpiredException $e) {
-        // Specific error for expired tokens (triggers your Axios 401 logout)
         sendError(401, 'Session expired. Please log in again.');
     } catch (Exception $e) {
-        // Catch tampered or malformed tokens
         sendError(401, 'Access denied. Token is invalid.');
     }
 }
