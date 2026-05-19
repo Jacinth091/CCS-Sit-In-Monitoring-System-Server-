@@ -22,7 +22,7 @@ try {
             sl.id,
             sl.id AS log_id,
             sl.purpose,
-            l.lab_name,
+            l.name,
             sl.time_in,
             sl.time_out,
             sl.status,
