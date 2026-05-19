@@ -17,7 +17,7 @@ try {
 
     // Get original reservation details for validation and logging
     $stmt = $db->prepare("
-        SELECT r.lab_id, r.pc_number, l.name, s.first_name, s.last_name 
+        SELECT r.lab_id, r.pc_number, l.name, s.first_name, s.last_name, r.student_id
         FROM reservations r
         JOIN laboratories l ON r.lab_id = l.id
         JOIN students s ON r.student_id = s.student_id
@@ -62,6 +62,18 @@ try {
             $data['reservation_id'],
             $original['lab_id'],
             $action
+        );
+
+        // Notify Student
+        create_notification(
+            $db,
+            $original['student_id'],
+            $admin->student_id,
+            'reservation',
+            'Reservation Rescheduled',
+            "Your reservation for $labName (PC #$pc_number) has been rescheduled to {$data['new_date']} at {$data['new_time_slot']}.",
+            $data['reservation_id'],
+            'reservation'
         );
 
         sendSuccess(200, "Reservation rescheduled successfully.");

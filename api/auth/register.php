@@ -36,8 +36,9 @@ try {
 
     $student->password = password_hash($data->password, PASSWORD_DEFAULT);
 
-    if ($student->create()) {
-        sendSuccess(201, 'Student registered successfully!');
+    $id = $student->create();
+    if ($id) {
+        sendSuccess(201, 'Student registered successfully!', ['id' => $id]);
         exit();
     } else {
         sendError(503, 'Unable to register student.');

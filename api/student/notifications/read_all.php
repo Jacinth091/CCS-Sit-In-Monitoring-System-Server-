@@ -18,32 +18,49 @@ try {
     $type = !empty($_GET['type']) ? $_GET['type'] : null;
     $is_read = isset($_GET['is_read']) ? ($_GET['is_read'] === 'true') : null;
 
-    $query = "
-        FROM notifications
-        WHERE student_id = :student_id
-        AND (:type::varchar IS NULL OR type = :type::varchar)
-        AND (:is_read::boolean IS NULL OR is_read = :is_read::boolean)
-    ";
+    $whereClauses = ["student_id = :student_id"];
+    $params = [':student_id' => $student_id];
+
+    if ($type !== null) {
+        $whereClauses[] = "type = :type";
+        $params[':type'] = $type;
+    }
+
+    if ($is_read !== null) {
+        $whereClauses[] = "is_read = :is_read";
+        $params[':is_read'] = $is_read;
+    }
+
+    $whereSql = "WHERE " . implode(" AND ", $whereClauses);
 
     // 1. Get total count
-    $countStmt = $db->prepare("SELECT COUNT(*) " . $query);
-    $countStmt->bindValue(':student_id', $student_id);
-    $countStmt->bindValue(':type', $type);
-    $countStmt->bindValue(':is_read', $is_read, PDO::PARAM_BOOL);
+    $countStmt = $db->prepare("SELECT COUNT(*) FROM notifications " . $whereSql);
+    foreach ($params as $key => $val) {
+        if (is_bool($val)) {
+            $countStmt->bindValue($key, $val, PDO::PARAM_BOOL);
+        } else {
+            $countStmt->bindValue($key, $val);
+        }
+    }
     $countStmt->execute();
     $totalRecords = (int)$countStmt->fetchColumn();
 
     // 2. Get data
     $dataStmt = $db->prepare("
         SELECT id, type, title, message, is_read, reference_id, reference_type, created_at
-        " . $query . "
+        FROM notifications
+        $whereSql
         ORDER BY created_at DESC 
         LIMIT :limit OFFSET :offset
     ");
     
-    $dataStmt->bindValue(':student_id', $student_id);
-    $dataStmt->bindValue(':type', $type);
-    $dataStmt->bindValue(':is_read', $is_read, PDO::PARAM_BOOL);
+    foreach ($params as $key => $val) {
+        if (is_bool($val)) {
+            $dataStmt->bindValue($key, $val, PDO::PARAM_BOOL);
+        } else {
+            $dataStmt->bindValue($key, $val);
+        }
+    }
     $dataStmt->bindValue(':limit', $per_page, PDO::PARAM_INT);
     $dataStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $dataStmt->execute();

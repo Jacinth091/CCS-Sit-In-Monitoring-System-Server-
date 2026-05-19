@@ -20,7 +20,8 @@ try {
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
     sendSuccess(200, 'Unread count fetched successfully.', [
-        'unread_count' => (int)$result['unread_count']
+        'unread_count' => (int)$result['unread_count'],
+        'count' => (int)$result['unread_count']
     ]);
 
 } catch (Exception $e) {

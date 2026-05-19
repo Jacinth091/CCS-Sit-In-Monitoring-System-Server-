@@ -45,6 +45,22 @@ try {
             $res['lab_id'] ?? null,
             $action
         );
+
+        // Notify Student
+        $studentId = $db->query("SELECT student_id FROM reservations WHERE id = " . (int)$data['id'])->fetchColumn();
+        if ($studentId) {
+            create_notification(
+                $db,
+                $studentId,
+                $admin->student_id,
+                'reservation',
+                'Reservation ' . $statusLabel,
+                "Your reservation for $labName (PC #$pcNum) has been $statusLabel.",
+                $data['id'],
+                'reservation'
+            );
+        }
+
         sendSuccess(200, "Reservation status updated to '" . $data['status'] . "'.");
     } else {
         sendError(500, "Failed to update status.");
