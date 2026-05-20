@@ -6,7 +6,7 @@
 
 /vendor
 
-# Ignore everything in uploads
-/uploads/*
+# Ignore all uploads folders recursively
+**/uploads/**
 # Except the .gitkeep files
-!/uploads/**/*.gitkeep
+!**/uploads/**/*.gitkeep
