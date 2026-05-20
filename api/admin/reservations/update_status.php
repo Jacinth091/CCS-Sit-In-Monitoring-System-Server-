@@ -47,7 +47,9 @@ try {
         );
 
         // Notify Student
-        $studentId = $db->query("SELECT student_id FROM reservations WHERE id = " . (int)$data['id'])->fetchColumn();
+        $stmt = $db->prepare("SELECT student_id FROM reservations WHERE id = :id");
+        $stmt->execute([':id' => $data['id']]);
+        $studentId = $stmt->fetchColumn();
         if ($studentId) {
             create_notification(
                 $db,

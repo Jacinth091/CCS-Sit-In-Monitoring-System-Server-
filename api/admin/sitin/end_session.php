@@ -39,10 +39,16 @@ try {
         UPDATE sit_in_logs 
         SET status = 'completed', time_out = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
         WHERE id = :log_id
-        RETURNING time_out
+        RETURNING time_out, reservation_id
     ");
     $stmt->execute([':log_id' => $data->log_id]);
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Update reservation status to fulfilled
+    if (!empty($result['reservation_id'])) {
+        $updRes = $db->prepare("UPDATE reservations SET status = 'fulfilled', updated_at = NOW() WHERE id = :res_id");
+        $updRes->execute([':res_id' => $result['reservation_id']]);
+    }
 
     // Deduct student session count
     $stmt = $db->prepare("
