@@ -10,3 +10,7 @@
 **/uploads/**
 # Except the .gitkeep files
 !**/uploads/**/*.gitkeep
+
+# Local Gemini CLI and agent artifacts
+/.agents/
+/.gemini/
