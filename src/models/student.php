@@ -127,29 +127,67 @@
                 return false;
             }
         }
-        public function read_single() {
-            $query = 'SELECT 
+        public function read_by_student_id($student_id) {
+            $query = 'SELECT
                         id, student_id, first_name, last_name, middle_name,
                         course_level, email, session, course,
                         address, profile_pic, is_active, created_at, updated_at
                     FROM ' . $this->table . '
-                    WHERE id = :id
+                    WHERE student_id = :student_id
                     LIMIT 1';
 
             $stmt = $this->conn->prepare($query);
-
-            $this->id = Validator::sanitizeString($this->id);
-            $stmt->bindParam(':id', $this->id);
+            $stmt->bindParam(':student_id', $student_id);
 
             try {
                 $stmt->execute();
                 return $stmt->fetch(PDO::FETCH_ASSOC);
             } catch (PDOException $e) {
-                echo json_encode(['message' => $e->getMessage()]);
-                return false;
+                return null;
             }
         }
 
+        public function getDetailsByStudentId($student_id) {
+            // Get basic profile using the student_id lookup
+            $profile = $this->read_by_student_id($student_id);
+            if (!$profile) return null;
+
+            // Fetch recent reservations
+            $queryRes = "SELECT r.*, l.name as lab_name 
+                         FROM reservations r 
+                         LEFT JOIN laboratories l ON r.lab_id = l.id 
+                         WHERE r.student_id = :student_id 
+                         ORDER BY r.reserved_date DESC, r.reserved_time DESC";
+            $stmtRes = $this->conn->prepare($queryRes);
+            $stmtRes->execute([':student_id' => $student_id]);
+            $profile['reservations'] = $stmtRes->fetchAll(PDO::FETCH_ASSOC);
+
+            // Fetch recent sit-in logs
+            $queryLogs = "SELECT sl.*, l.name as lab_name 
+                          FROM sit_in_logs sl 
+                          LEFT JOIN laboratories l ON sl.lab_id = l.id 
+                          WHERE sl.student_id = :student_id 
+                          ORDER BY sl.time_in DESC";
+            $stmtLogs = $this->conn->prepare($queryLogs);
+            $stmtLogs->execute([':student_id' => $student_id]);
+            $profile['sit_in_logs'] = $stmtLogs->fetchAll(PDO::FETCH_ASSOC);
+
+            // Calculate totals
+            $queryStats = "SELECT 
+                            COUNT(*) as total_sessions,
+                            COALESCE(SUM(EXTRACT(EPOCH FROM (time_out - time_in))/3600), 0) as total_hours
+                           FROM sit_in_logs 
+                           WHERE student_id = :student_id AND status = 'completed' AND time_out IS NOT NULL";
+            $stmtStats = $this->conn->prepare($queryStats);
+            $stmtStats->execute([':student_id' => $student_id]);
+            $stats = $stmtStats->fetch(PDO::FETCH_ASSOC);
+
+            $profile['total_sessions'] = (int)($stats['total_sessions'] ?? 0);
+            $profile['total_hours'] = round((float)($stats['total_hours'] ?? 0), 2);
+
+
+            return $profile;
+        }
         // UPDATE student profile
         public function update() {
             $query = 'UPDATE ' . $this->table . ' SET
