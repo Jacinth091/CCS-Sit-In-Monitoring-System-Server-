@@ -103,23 +103,26 @@ class Reservation {
     }
 
     public function getAll($filters = []) {
-        $query = "SELECT r.*, l.name, l.lab_code, s.first_name, s.last_name, s.course, s.course_level
+        $query = "SELECT r.*, l.name, l.lab_code, s.first_name, s.last_name, s.course, s.course_level, s.profile_pic
                   FROM " . $this->table . " r
                   LEFT JOIN laboratories l ON r.lab_id = l.id
                   LEFT JOIN students s ON r.student_id = s.student_id
                   WHERE r.deleted_at IS NULL";
 
+        $params = [];
         if (!empty($filters['status'])) {
             $query .= " AND r.status = :status";
+            $params[':status'] = $filters['status'];
+        }
+        if (!empty($filters['lab_id'])) {
+            $query .= " AND r.lab_id = :lab_id";
+            $params[':lab_id'] = $filters['lab_id'];
         }
 
         $query .= " ORDER BY r.reserved_date ASC, r.reserved_time ASC";
 
         $stmt = $this->conn->prepare($query);
-        if (!empty($filters['status'])) {
-            $stmt->bindParam(':status', $filters['status']);
-        }
-        $stmt->execute();
+        $stmt->execute($params);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -273,6 +276,13 @@ class Reservation {
             throw new Exception("Student has no remaining sessions left to convert this reservation.", 403);
         }
 
+        // Check if student already has an ongoing session
+        $stmtOngoing = $this->conn->prepare("SELECT COUNT(*) FROM sit_in_logs WHERE student_id = :student_id AND status = 'ongoing'");
+        $stmtOngoing->execute([':student_id' => $reservation['student_id']]);
+        if ($stmtOngoing->fetchColumn() > 0) {
+            throw new Exception("Student already has an ongoing sit-in session.", 409);
+        }
+
         // Check if already converted
         $query = "SELECT COUNT(*) FROM sit_in_logs WHERE reservation_id = :res_id";
         $stmt = $this->conn->prepare($query);
@@ -296,7 +306,7 @@ class Reservation {
             ]);
             $sitInId = $insStmt->fetchColumn();
 
-            $updateQuery = "UPDATE " . $this->table . " SET status = 'fulfilled', updated_at = NOW() WHERE id = :id";
+            $updateQuery = "UPDATE " . $this->table . " SET updated_at = NOW() WHERE id = :id";
             $updStmt = $this->conn->prepare($updateQuery);
             $updStmt->execute([':id' => $reservationId]);
 

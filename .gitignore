@@ -5,6 +5,8 @@
 .DS_Store
 
 /vendor
-/uploads
-/api/uploads/profiles/*
-!/api/uploads/profiles/.gitkeep
+
+# Ignore everything in uploads
+/uploads/*
+# Except the .gitkeep files
+!/uploads/**/*.gitkeep
