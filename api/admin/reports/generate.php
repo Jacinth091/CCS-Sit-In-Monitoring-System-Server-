@@ -6,18 +6,27 @@ require_once __DIR__ . '/../../../includes/initialize.php';
 requireAdmin();
 
 $filters = [
-    'from'   => $_GET['from'] ?? null,
-    'to'     => $_GET['to'] ?? null,
-    'lab_id' => $_GET['lab_id'] ?? null,
-    'purpose'=> $_GET['purpose'] ?? null,
+    'from'       => $_GET['from'] ?? null,
+    'to'         => $_GET['to'] ?? null,
+    'lab_id'     => $_GET['lab_id'] ?? null,
+    'purpose'    => $_GET['purpose'] ?? null,
+    'student_id' => $_GET['student_id'] ?? null,
 ];
 
 $type = $_GET['type'] ?? 'json'; // json | csv | pdf
+$page = max(1, (int)($_GET['page'] ?? 1));
+$limit = (int)($_GET['limit'] ?? 20);
+$offset = ($page - 1) * $limit;
 
 try {
     $reportModel = new Report($db);
-    $rows = $reportModel->getSitinReport($filters);
     $total = $reportModel->getSitinCount($filters);
+    
+    // Only apply pagination for JSON output
+    $limitQuery = ($type === 'json') ? $limit : null;
+    $offsetQuery = ($type === 'json') ? $offset : null;
+    
+    $rows = $reportModel->getSitinReport($filters, $limitQuery, $offsetQuery);
 
     // ─── CSV Export ───
     if ($type === 'csv') {
@@ -26,17 +35,34 @@ try {
         
         $output = fopen('php://output', 'w');
         // Header row
-        fputcsv($output, ['Student ID', 'Student Name', 'Laboratory', 'Purpose', 'Time In', 'Time Out', 'Duration (min)', 'Status']);
+        fputcsv($output, ['Student ID', 'Student Name', 'Lab', 'Lab Code', 'PC #', 'Purpose', 'Date', 'Time In', 'Time Out', 'Duration', 'Status']);
         
         foreach ($rows as $row) {
+            $duration = ($row['duration_hours'] !== null && $row['duration_minutes'] !== null) 
+                ? $row['duration_hours'] . 'h ' . $row['duration_minutes'] . 'm' 
+                : '';
+            
+            $dtIn = new DateTime($row['time_in'], new DateTimeZone('Asia/Manila'));
+            $date = $dtIn->format('M j, Y');
+            $timeIn = $dtIn->format('g:i A');
+            
+            $timeOut = '';
+            if ($row['time_out']) {
+                $dtOut = new DateTime($row['time_out'], new DateTimeZone('Asia/Manila'));
+                $timeOut = $dtOut->format('g:i A');
+            }
+
             fputcsv($output, [
                 $row['student_id'],
                 $row['student_name'],
                 $row['name'],
+                $row['lab_code'],
+                $row['pc_number'],
                 $row['purpose'],
-                $row['time_in'],
-                $row['time_out'] ?? '',
-                $row['duration_minutes'] ?? '',
+                $date,
+                $timeIn,
+                $timeOut,
+                $duration,
                 $row['status']
             ]);
         }
@@ -88,12 +114,12 @@ try {
         $pdf->Ln(4);
 
         // ── Table Header ──
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('helvetica', 'B', 7);
         $pdf->SetFillColor(0, 31, 63);    // Navy
         $pdf->SetTextColor(234, 216, 177); // Sand
         
-        $w = [30, 50, 35, 40, 40, 40, 20, 20];
-        $headers = ['Student ID', 'Name', 'Lab', 'Purpose', 'Time In', 'Time Out', 'Duration', 'Status'];
+        $w = [22, 40, 30, 20, 15, 40, 20, 20, 20, 18, 15];
+        $headers = ['Student ID', 'Name', 'Lab', 'Code', 'PC#', 'Purpose', 'Date', 'In', 'Out', 'Dur', 'Status'];
         
         for ($i = 0; $i < count($headers); $i++) {
             $pdf->Cell($w[$i], 8, $headers[$i], 1, 0, 'C', true);
@@ -101,7 +127,7 @@ try {
         $pdf->Ln();
 
         // ── Table Body ──
-        $pdf->SetFont('helvetica', '', 7);
+        $pdf->SetFont('helvetica', '', 6);
         $pdf->SetTextColor(0, 0, 0);
         $fill = false;
 
@@ -112,18 +138,31 @@ try {
                 $pdf->SetFillColor(255, 255, 255);
             }
 
-            $timeIn = $row['time_in'] ? date('M j, g:i A', strtotime($row['time_in'])) : '';
-            $timeOut = $row['time_out'] ? date('M j, g:i A', strtotime($row['time_out'])) : '—';
-            $duration = $row['duration_minutes'] ? $row['duration_minutes'] . 'm' : '—';
+            $dtIn = new DateTime($row['time_in'], new DateTimeZone('Asia/Manila'));
+            $date = $dtIn->format('M j, Y');
+            $timeIn = $dtIn->format('g:i A');
+            
+            $timeOut = '—';
+            if ($row['time_out']) {
+                $dtOut = new DateTime($row['time_out'], new DateTimeZone('Asia/Manila'));
+                $timeOut = $dtOut->format('g:i A');
+            }
+
+            $duration = ($row['duration_hours'] !== null && $row['duration_minutes'] !== null) 
+                ? $row['duration_hours'] . 'h ' . $row['duration_minutes'] . 'm' 
+                : '—';
 
             $pdf->Cell($w[0], 7, $row['student_id'], 1, 0, 'C', true);
             $pdf->Cell($w[1], 7, $row['student_name'], 1, 0, 'L', true);
             $pdf->Cell($w[2], 7, $row['name'], 1, 0, 'C', true);
-            $pdf->Cell($w[3], 7, $row['purpose'], 1, 0, 'L', true);
-            $pdf->Cell($w[4], 7, $timeIn, 1, 0, 'C', true);
-            $pdf->Cell($w[5], 7, $timeOut, 1, 0, 'C', true);
-            $pdf->Cell($w[6], 7, $duration, 1, 0, 'C', true);
-            $pdf->Cell($w[7], 7, ucfirst($row['status']), 1, 0, 'C', true);
+            $pdf->Cell($w[3], 7, $row['lab_code'], 1, 0, 'C', true);
+            $pdf->Cell($w[4], 7, $row['pc_number'], 1, 0, 'C', true);
+            $pdf->Cell($w[5], 7, $row['purpose'], 1, 0, 'L', true);
+            $pdf->Cell($w[6], 7, $date, 1, 0, 'C', true);
+            $pdf->Cell($w[7], 7, $timeIn, 1, 0, 'C', true);
+            $pdf->Cell($w[8], 7, $timeOut, 1, 0, 'C', true);
+            $pdf->Cell($w[9], 7, $duration, 1, 0, 'C', true);
+            $pdf->Cell($w[10], 7, ucfirst($row['status']), 1, 0, 'C', true);
             $pdf->Ln();
 
             $fill = !$fill;
@@ -137,7 +176,21 @@ try {
     }
 
     // ─── Default: JSON ───
-    sendSuccess(200, "Report generated successfully", $rows, ['total_records' => $total]);
+    $formattedRows = array_map(function($row) {
+        $row['date'] = date('Y-m-d', strtotime($row['time_in']));
+        return $row;
+    }, $rows);
+
+    $totalPages = ceil($total / $limit);
+    sendSuccess(200, "Report generated successfully", [
+        'records' => $formattedRows,
+        'pagination' => [
+            'total' => (int)$total,
+            'page' => $page,
+            'limit' => $limit,
+            'total_pages' => (int)$totalPages
+        ]
+    ]);
 
 } catch (Exception $e) {
     sendError(500, "Failed to generate report", $e);

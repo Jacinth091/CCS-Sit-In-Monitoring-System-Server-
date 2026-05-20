@@ -11,22 +11,24 @@ class Report {
      * @param array $filters Keys: from, to, lab_id, purpose, student_id
      * @return array
      */
-    public function getSitinReport($filters) {
+    public function getSitinReport($filters, $limit = null, $offset = null) {
         $sql = "SELECT 
                     s.student_id,
                     CONCAT(s.first_name, ' ', s.last_name) AS student_name,
                     l.name,
+                    l.lab_code,
+                    sl.pc_number,
                     sl.purpose,
                     sl.time_in,
                     sl.time_out,
-                    CASE WHEN sl.time_out IS NOT NULL 
-                         THEN ROUND(EXTRACT(EPOCH FROM (sl.time_out - sl.time_in)) / 60)
-                         ELSE NULL END AS duration_minutes,
+                    ROUND(EXTRACT(EPOCH FROM (sl.time_out - sl.time_in)) / 60) AS total_minutes,
+                    FLOOR(EXTRACT(EPOCH FROM (sl.time_out - sl.time_in)) / 3600) AS duration_hours,
+                    FLOOR(MOD(EXTRACT(EPOCH FROM (sl.time_out - sl.time_in)) / 60, 60)) AS duration_minutes,
                     sl.status
                 FROM sit_in_logs sl
                 LEFT JOIN students s ON sl.student_id = s.student_id
                 LEFT JOIN laboratories l ON sl.lab_id = l.id
-                WHERE sl.deleted_at IS NULL";
+                WHERE sl.deleted_at IS NULL AND sl.status != 'ongoing'";
 
         $params = [];
 
@@ -46,8 +48,18 @@ class Report {
             $sql .= " AND sl.purpose = :purpose";
             $params[':purpose'] = $filters['purpose'];
         }
+        if (!empty($filters['student_id'])) {
+            $sql .= " AND sl.student_id = :student_id";
+            $params[':student_id'] = $filters['student_id'];
+        }
 
         $sql .= " ORDER BY sl.time_in DESC";
+
+        if ($limit !== null) {
+            $sql .= " LIMIT :limit OFFSET :offset";
+            $params[':limit'] = (int)$limit;
+            $params[':offset'] = (int)$offset;
+        }
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute($params);
@@ -55,7 +67,7 @@ class Report {
     }
 
     public function getSitinCount($filters) {
-        $sql = "SELECT COUNT(*) FROM sit_in_logs sl WHERE deleted_at IS NULL";
+        $sql = "SELECT COUNT(*) FROM sit_in_logs sl WHERE deleted_at IS NULL AND status != 'ongoing'";
         $params = [];
 
         if (!empty($filters['from'])) {
@@ -73,6 +85,10 @@ class Report {
         if (!empty($filters['purpose'])) {
             $sql .= " AND sl.purpose = :purpose";
             $params[':purpose'] = $filters['purpose'];
+        }
+        if (!empty($filters['student_id'])) {
+            $sql .= " AND sl.student_id = :student_id";
+            $params[':student_id'] = $filters['student_id'];
         }
 
         $stmt = $this->conn->prepare($sql);
