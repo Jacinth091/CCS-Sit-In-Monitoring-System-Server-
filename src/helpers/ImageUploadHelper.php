@@ -14,6 +14,7 @@ class ImageUploadHelper {
   private static array $dirs = [
     'icon'      => 'uploads/icons',
     'avatar'    => 'uploads/avatars',
+    'profile'   => 'uploads/profiles',
     'lab_image' => 'uploads/lab-images',
     'general'   => 'uploads/general',
   ];
@@ -45,12 +46,20 @@ class ImageUploadHelper {
       return self::fail("File exceeds the 5MB size limit.");
     }
 
-    // 4. Validate MIME using finfo — never trust $_FILES['type']
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime  = $finfo->file($file['tmp_name']);
+    // 4. Validate MIME — never trust $_FILES['type']
+    $mime = null;
+    if (class_exists('finfo')) {
+      $finfo = new finfo(FILEINFO_MIME_TYPE);
+      $mime  = $finfo->file($file['tmp_name']);
+    } elseif (function_exists('mime_content_type')) {
+      $mime = mime_content_type($file['tmp_name']);
+    } elseif (function_exists('getimagesize')) {
+      $size = getimagesize($file['tmp_name']);
+      $mime = $size['mime'] ?? null;
+    }
 
-    if (!in_array($mime, self::$allowedMimes, true)) {
-      return self::fail("File type not allowed. Accepted: JPEG, PNG, GIF, WebP, SVG.");
+    if (!$mime || !in_array($mime, self::$allowedMimes, true)) {
+      return self::fail("File type not allowed or could not be determined. Accepted: JPEG, PNG, GIF, WebP, SVG.");
     }
 
     // 5. Map MIME to extension

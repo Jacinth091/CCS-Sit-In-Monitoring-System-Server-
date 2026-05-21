@@ -31,6 +31,7 @@
     require_once(MODEL_PATH . DS . 'Testimonial.php');
     require_once(MODEL_PATH . DS . 'PC.php');
     require_once(MODEL_PATH . DS . 'AuditLog.php');
+    require_once(SRC_PATH . DS . 'helpers' . DS . 'ImageUploadHelper.php');
     require_once(INC_PATH . DS . 'notifications.php');
 
     // Log incoming requests if running via CLI server or XAMPP
