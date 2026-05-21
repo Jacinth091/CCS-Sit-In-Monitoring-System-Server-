@@ -4,7 +4,15 @@ require_once __DIR__ . '/../../../includes/initialize.php';
 
 $userData = requireAdmin();
 
-$data = json_decode(file_get_contents("php://input"), true);
+// Support both JSON and multipart/form-data
+$data = [];
+$content_type = $_SERVER['CONTENT_TYPE'] ?? '';
+
+if (strpos($content_type, 'application/json') !== false) {
+    $data = json_decode(file_get_contents("php://input"), true) ?? [];
+} else {
+    $data = $_POST;
+}
 
 if (empty($data['name']) || empty($data['version'])) {
     sendError(400, "Name and Version are required.");
@@ -17,7 +25,18 @@ try {
         sendError(409, "Software with this name and version already exists.");
     }
 
-    $id = $swModel->create($data['name'], $data['version'], $data['description'] ?? null, $data['icon_path'] ?? null, $data['is_active'] ?? true);
+    $iconPath = $data['icon_path'] ?? null;
+
+    // Handle file upload if present
+    if (isset($_FILES['icon']) && $_FILES['icon']['error'] !== UPLOAD_ERR_NO_FILE) {
+        $upload = ImageUploadHelper::upload($_FILES['icon'], 'icon');
+        if (!$upload['success']) {
+            sendError(400, $upload['message']);
+        }
+        $iconPath = $upload['path'];
+    }
+
+    $id = $swModel->create($data['name'], $data['version'], $data['description'] ?? null, $iconPath, $data['is_active'] ?? true);
     
     if ($id) {
         if (!empty($data['lab_ids']) && is_array($data['lab_ids'])) {
