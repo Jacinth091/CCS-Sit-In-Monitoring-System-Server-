@@ -8,13 +8,9 @@ $currentUser = authenticate();
 
 $student = new Student($db);
 
-// // Expect id from query string: /read_single.php?id=<uuid>
-// $student->id = isset($_GET['id']) ? $_GET['id'] : die(
-//     json_encode(['message' => 'No ID provided.'])
-// );
-$student->id = $currentUser->id;
+$id = $currentUser->id;
  
-$row = $student->read_single();
+$row = $student->read_by_id($id);
 
 if($row) {
     sendSuccess(200, 'Student data retrieved.', $row);

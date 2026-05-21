@@ -12,100 +12,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// If ID is not in the POST data, use the authenticated user's ID
-$student_id = isset($_POST['id']) ? $_POST['id'] : $currentUser->id;
+// Support both 'student_id' (string) and 'id' (UUID) in the request
+// If not provided, use the authenticated user's student_id
+$id_input = isset($_POST['student_id']) ? $_POST['student_id'] : (isset($_POST['id']) ? $_POST['id'] : $currentUser->student_id);
+
+// Fetch student to get UUID and current profile pic path
+$studentModel = new Student($db);
+$studentData = null;
+
+// Determine if input is a UUID or a student_id
+if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id_input)) {
+    $studentData = $studentModel->read_by_id($id_input);
+} else {
+    $studentData = $studentModel->read_by_student_id($id_input);
+}
+
+if (!$studentData) {
+    sendError(404, 'Student not found.');
+}
 
 // Students can only upload their own photo; admins can upload for anyone
-if ($currentUser->role === 'student' && $student_id !== $currentUser->id) {
+if ($currentUser->role === 'student' && $studentData['student_id'] !== $currentUser->student_id) {
     sendError(403, 'Access denied. You can only update your own profile picture.');
-}
-
-// Pathing: Ensure we use the correct uploads folder. 
-// Based on directory listing, it's in the root /uploads/profiles
-$target_dir = SITE_ROOT . "/uploads/profiles/";
-
-if (!file_exists($target_dir)) {
-    if (!mkdir($target_dir, 0777, true)) {
-        sendError(500, 'Failed to create upload directory at ' . $target_dir);
-    }
-}
-
-if (!is_writable($target_dir)) {
-    sendError(500, 'Upload directory is not writable: ' . $target_dir);
 }
 
 if(isset($_FILES['profile_pic'])) {
     $file = $_FILES['profile_pic'];
     
-    // Check for PHP upload errors
-    if ($file['error'] !== UPLOAD_ERR_OK) {
-        $error_messages = [
-            UPLOAD_ERR_INI_SIZE   => 'The uploaded file exceeds the upload_max_filesize directive in php.ini',
-            UPLOAD_ERR_FORM_SIZE  => 'The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form',
-            UPLOAD_ERR_PARTIAL    => 'The uploaded file was only partially uploaded',
-            UPLOAD_ERR_NO_FILE    => 'No file was uploaded',
-            UPLOAD_ERR_NO_TMP_DIR => 'Missing a temporary folder',
-            UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
-            UPLOAD_ERR_EXTENSION  => 'A PHP extension stopped the file upload',
-        ];
-        $msg = isset($error_messages[$file['error']]) ? $error_messages[$file['error']] : 'Unknown upload error (Code: ' . $file['error'] . ')';
-        sendError(400, $msg);
-    }
-    
-    // Validate file type
-    $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    
-    // Use mime_content_type if finfo is not available
-    if (function_exists('finfo_open')) {
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime = finfo_file($finfo, $file['tmp_name']);
-        finfo_close($finfo);
-    } elseif (function_exists('mime_content_type')) {
-        $mime = mime_content_type($file['tmp_name']);
-    } else {
-        $mime = $file['type']; // Fallback to browser-provided type
-    }
+    // Use the robust ImageUploadHelper to handle directory creation, validation, and moving
+    // It also handles deleting the old file if it exists.
+    $upload = ImageUploadHelper::upload($file, 'profile', $studentData['profile_pic']);
 
-    if(!in_array($mime, $allowed_types)) {
-        sendError(400, 'Invalid file type (' . $mime . '). Only JPG, PNG, GIF, and WEBP are allowed.');
-    }
-    
-    // Generate unique name
-    $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-    if (empty($ext)) {
-        $mime_map = [
-            'image/jpeg' => 'jpg',
-            'image/png'  => 'png',
-            'image/gif'  => 'gif',
-            'image/webp' => 'webp'
-        ];
-        $ext = isset($mime_map[$mime]) ? $mime_map[$mime] : 'bin';
-    }
-    
-    $filename = uniqid('profile_') . '.' . $ext;
-    $target_file = $target_dir . $filename;
-    
-    if(move_uploaded_file($file['tmp_name'], $target_file)) {
-        // This path is stored in DB. 
-        $db_path = 'uploads/profiles/' . $filename;
+    if ($upload['success']) {
+        $db_path = $upload['path'];
         
         try {
-            // Update database
-            $query = "UPDATE students SET profile_pic = :pic WHERE id = :id";
+            // Update database with the new path
+            $query = "UPDATE students SET profile_pic = :pic, updated_at = NOW() WHERE id = :id";
             $stmt = $db->prepare($query);
             $stmt->bindParam(':pic', $db_path);
-            $stmt->bindParam(':id', $student_id);
+            $stmt->bindParam(':id', $studentData['id']);
             
             if($stmt->execute()) {
                 sendSuccess(200, 'Profile picture updated successfully.', ['profile_pic' => $db_path]);
             } else {
+                // Note: The file is already moved. If DB fails, it remains on disk but untracked.
                 sendError(500, 'Failed to update database record.');
             }
         } catch (Exception $e) {
             sendError(500, 'Database error: ' . $e->getMessage());
         }
     } else {
-        sendError(500, 'Failed to move uploaded file to destination.');
+        // Return the specific error message from the helper (e.g., size, type, permissions)
+        sendError(400, $upload['message']);
     }
 } else {
     // Check if the request was actually a POST request
