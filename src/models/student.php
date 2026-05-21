@@ -147,6 +147,26 @@
             }
         }
 
+        public function read_by_id($id) {
+            $query = 'SELECT
+                        id, student_id, first_name, last_name, middle_name,
+                        course_level, email, session, course,
+                        address, profile_pic, is_active, created_at, updated_at
+                    FROM ' . $this->table . '
+                    WHERE id = :id
+                    LIMIT 1';
+
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':id', $id);
+
+            try {
+                $stmt->execute();
+                return $stmt->fetch(PDO::FETCH_ASSOC);
+            } catch (PDOException $e) {
+                return null;
+            }
+        }
+
         public function getDetailsByStudentId($student_id) {
             // Get basic profile using the student_id lookup
             $profile = $this->read_by_student_id($student_id);

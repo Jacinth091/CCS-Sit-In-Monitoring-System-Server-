@@ -85,14 +85,15 @@ class Laboratory {
         return $stats;
     }
 
-    public function create($name, $lab_code = null, $capacity = 30, $is_active = true) {
-        $query = "INSERT INTO " . $this->table . " (name, lab_code, capacity, is_active) 
-                  VALUES (:name, :lab_code, :capacity, :is_active) RETURNING id";
+    public function create($name, $lab_code = null, $capacity = 30, $is_active = true, $image_path = null) {
+        $query = "INSERT INTO " . $this->table . " (name, lab_code, capacity, is_active, image_path) 
+                  VALUES (:name, :lab_code, :capacity, :is_active, :image_path) RETURNING id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':name', $name);
         $stmt->bindParam(':lab_code', $lab_code);
         $stmt->bindParam(':capacity', $capacity);
         $stmt->bindValue(':is_active', $is_active, PDO::PARAM_BOOL);
+        $stmt->bindParam(':image_path', $image_path);
 
         if ($stmt->execute()) {
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -101,16 +102,26 @@ class Laboratory {
         return false;
     }
 
-    public function update($id, $name, $lab_code = null, $capacity = 30, $is_active = true) {
+    public function update($id, $name, $lab_code = null, $capacity = 30, $is_active = true, $image_path = null) {
         $query = "UPDATE " . $this->table . " 
-                  SET name = :name, lab_code = :lab_code, capacity = :capacity, is_active = :is_active, updated_at = CURRENT_TIMESTAMP
-                  WHERE id = :id";
+                  SET name = :name, lab_code = :lab_code, capacity = :capacity, is_active = :is_active, updated_at = CURRENT_TIMESTAMP";
+        
+        if ($image_path !== null) {
+            $query .= ", image_path = :image_path";
+        }
+        
+        $query .= " WHERE id = :id";
+        
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':name', $name);
         $stmt->bindParam(':lab_code', $lab_code);
         $stmt->bindParam(':capacity', $capacity);
         $stmt->bindValue(':is_active', $is_active, PDO::PARAM_BOOL);
         $stmt->bindParam(':id', $id);
+        
+        if ($image_path !== null) {
+            $stmt->bindParam(':image_path', $image_path);
+        }
 
         return $stmt->execute();
     }
