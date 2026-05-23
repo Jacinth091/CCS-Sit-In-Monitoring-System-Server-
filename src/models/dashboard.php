@@ -55,7 +55,7 @@ class Dashboard {
 
         // 6. Recent Sessions
         $stmt = $this->conn->query("
-            SELECT s.first_name, s.last_name, l.name as lab_name, sil.purpose, sil.time_in, sil.status
+            SELECT s.first_name, s.last_name, l.name as lab_name, sil.purpose, sil.time_in, sil.status, sil.pc_number
             FROM sit_in_logs sil
             JOIN students s ON sil.student_id = s.student_id
             JOIN laboratories l ON sil.lab_id = l.id
@@ -121,13 +121,13 @@ class Dashboard {
 
     public function getSessionsByLab($from, $to) {
         $query = "
-            SELECT l.name as label, COUNT(sil.id)::int as count
+            SELECT l.lab_code, l.name as label, COUNT(sil.id)::int as count
             FROM laboratories l
             LEFT JOIN sit_in_logs sil ON l.id = sil.lab_id 
                 AND sil.time_in::date BETWEEN :from AND :to
                 AND sil.deleted_at IS NULL
             WHERE l.deleted_at IS NULL
-            GROUP BY l.id, l.name
+            GROUP BY l.id, l.lab_code, l.name
             ORDER BY count DESC
         ";
         $stmt = $this->conn->prepare($query);

@@ -22,12 +22,13 @@ class Leaderboard {
                 SELECT 
                     sl.student_id, 
                     CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+                    s.profile_pic,
                     COUNT(sl.id) AS value
                 FROM sit_in_logs sl
                 JOIN students s ON sl.student_id = s.student_id
                 WHERE sl.status = 'completed' AND sl.time_out IS NOT NULL AND sl.deleted_at IS NULL
                 $dateFilter
-                GROUP BY sl.student_id, s.first_name, s.last_name
+                GROUP BY sl.student_id, s.first_name, s.last_name, s.profile_pic
                 ORDER BY value DESC
                 LIMIT :limit
             ";
@@ -37,12 +38,13 @@ class Leaderboard {
                 SELECT 
                     sl.student_id, 
                     CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+                    s.profile_pic,
                     SUM(EXTRACT(EPOCH FROM (sl.time_out - sl.time_in)) / 3600) AS value
                 FROM sit_in_logs sl
                 JOIN students s ON sl.student_id = s.student_id
                 WHERE sl.status = 'completed' AND sl.time_out IS NOT NULL AND sl.deleted_at IS NULL
                 $dateFilter
-                GROUP BY sl.student_id, s.first_name, s.last_name
+                GROUP BY sl.student_id, s.first_name, s.last_name, s.profile_pic
                 ORDER BY value DESC
                 LIMIT :limit
             ";
@@ -73,6 +75,7 @@ class Leaderboard {
                 'rank' => $rank++,
                 'student_id' => $row['student_id'],
                 'student_name' => $row['student_name'],
+                'profile_pic' => $row['profile_pic'],
                 'value' => (float)$row['value'],
                 'display_value' => $displayValue
             ];
