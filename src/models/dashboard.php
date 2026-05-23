@@ -55,7 +55,7 @@ class Dashboard {
 
         // 6. Recent Sessions
         $stmt = $this->conn->query("
-            SELECT s.first_name, s.last_name, l.name as lab_name, sil.purpose, sil.time_in, sil.status, sil.pc_number
+            SELECT s.first_name, s.last_name, l.lab_code, l.name as lab_name, sil.purpose, sil.time_in, sil.status, sil.pc_number
             FROM sit_in_logs sil
             JOIN students s ON sil.student_id = s.student_id
             JOIN laboratories l ON sil.lab_id = l.id
@@ -70,11 +70,11 @@ class Dashboard {
 
         // 7. Lab Usage Stats
         $stmt = $this->conn->query("
-            SELECT l.name as label, COUNT(sil.id) as count
+            SELECT COALESCE(NULLIF(l.lab_code, ''), l.name) as label, COUNT(sil.id) as count
             FROM laboratories l
             LEFT JOIN sit_in_logs sil ON l.id = sil.lab_id
             WHERE l.deleted_at IS NULL
-            GROUP BY l.id, l.name
+            GROUP BY l.id, l.lab_code, l.name
             ORDER BY count DESC
         ");
         $labStats = array();
