@@ -96,12 +96,13 @@ try {
         LIMIT :limit OFFSET :offset;
     ";
 
-    $main_params = $params;
-    $main_params[':limit'] = $per_page;
-    $main_params[':offset'] = $offset;
-
     $stmt = $db->prepare($query);
-    $stmt->execute($main_params);
+    foreach ($params as $key => $val) {
+        $stmt->bindValue($key, $val);
+    }
+    $stmt->bindValue(':limit', $per_page, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
     $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // 2. Get total count for meta
