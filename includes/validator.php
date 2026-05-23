@@ -13,7 +13,11 @@ class Validator {
      * Validate an email address.
      */
     public static function validateEmail($email) {
-        return filter_var($email, FILTER_VALIDATE_EMAIL);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+        // Additional strict check to ensure TLD is alphabetic (e.g., rejects .com222)
+        return preg_match('/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $email) === 1;
     }
 
     /**
@@ -21,6 +25,30 @@ class Validator {
      */
     public static function sanitizeEmail($email) {
         return filter_var($email, FILTER_SANITIZE_EMAIL);
+    }
+
+    /**
+     * Validate Student ID (exactly 8 digits).
+     */
+    public static function isValidStudentId($student_id) {
+        return preg_match('/^\d{8}$/', $student_id);
+    }
+
+    /**
+     * Validate Names (letters, spaces, hyphens, apostrophes, dots, and ñ).
+     */
+    public static function isValidName($name) {
+        if (empty($name)) return false;
+        // Supports letters, spaces, hyphens, apostrophes, dots and Filipino characters
+        return preg_match("/^[a-zA-Z\s\-'.ñÑ]+$/u", $name);
+    }
+
+    /**
+     * Validate Address (Optional, any string allowed).
+     */
+    public static function isValidAddress($address) {
+        if (empty($address)) return true; // Optional
+        return is_string($address);
     }
 
     /**

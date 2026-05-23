@@ -81,4 +81,26 @@ try {
 } catch (Exception $e) {
     sendError(500, 'An unexpected server error occurred.', $e);
 }
+?>ent_id)",
+            'student',
+            (string)$data->student_id,
+            null,
+            "Created student $data->student_id"
+        );
+
+        sendSuccess(201, 'Student created successfully!', ['id' => $id]);
+        exit();
+    } else {
+        sendError(503, 'Unable to create student.');
+    }
+
+} catch (PDOException $e) {
+    if ($e->getCode() == 23505) {
+        sendError(409, 'This record already exists.', $e);
+    } else {
+        sendError(500, 'A database error occurred while creating student.', $e);
+    }
+} catch (Exception $e) {
+    sendError(500, 'An unexpected server error occurred.', $e);
+}
 ?>

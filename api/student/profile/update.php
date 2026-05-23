@@ -4,7 +4,7 @@ require_once __DIR__ . '/../../../includes/initialize.php';
 
 $currentUser = requireAuth();
 
-$student = new Student($db);
+$studentModel = new Student($db);
 
 // Read JSON body from PUT request
 $data = json_decode(file_get_contents("php://input"));
@@ -23,18 +23,53 @@ if(
     !empty($data->last_name) &&
     !empty($data->email)
 ) {
-    $student->id           = $targetId;
-    $student->first_name   = $data->first_name;
-    $student->last_name    = $data->last_name;
-    $student->middle_name  = $data->middle_name  ?? '';
-    $student->course       = $data->course       ?? '';
-    $student->course_level = $data->course_level ?? '';
-    $student->email        = $data->email;
-    $student->address      = $data->address      ?? '';
-    $student->session      = $data->session      ?? 30;
-    $student->profile_pic  = $data->profile_pic  ?? null;
+    $errors = [];
 
-    if($student->update()) {
+    // Field-specific validation
+    if (!Validator::isValidName($data->first_name)) {
+        $errors['first_name'] = 'First name contains invalid characters.';
+    }
+    if (!Validator::isValidName($data->last_name)) {
+        $errors['last_name'] = 'Last name contains invalid characters.';
+    }
+    if (!empty($data->middle_name) && !Validator::isValidName($data->middle_name)) {
+        $errors['middle_name'] = 'Middle name contains invalid characters.';
+    }
+    if (!Validator::validateEmail($data->email)) {
+        $errors['email'] = 'Invalid email address format.';
+    }
+    if (!empty($data->address) && !Validator::isValidAddress($data->address)) {
+        $errors['address'] = "Invalid address format.";
+    }
+
+    if (!empty($errors)) {
+        sendValidationError($errors);
+    }
+
+    $studentModel->id           = $targetId;
+    
+    // Fetch current student_id to preserve it (students cannot change their own ID)
+    $stmt = $db->prepare("SELECT student_id FROM students WHERE id = :id");
+    $stmt->execute([':id' => $targetId]);
+    $existing = $stmt->fetch();
+    $studentModel->student_id = $existing['student_id'];
+
+    $studentModel->first_name   = $data->first_name;
+    $studentModel->last_name    = $data->last_name;
+    $studentModel->middle_name  = $data->middle_name  ?? '';
+    $studentModel->course       = $data->course       ?? '';
+    $studentModel->course_level = $data->course_level ?? '';
+    $studentModel->email        = $data->email;
+    $studentModel->address      = $data->address      ?? '';
+    $studentModel->session      = $data->session      ?? 30;
+    $studentModel->profile_pic  = $data->profile_pic  ?? null;
+
+    // Uniqueness checks (excluding current student)
+    if ($studentModel->emailExist($targetId)) {
+        sendValidationError(['email' => 'This email address is already assigned to another student.']);
+    }
+
+    if($studentModel->update()) {
         sendSuccess(200, 'Student profile updated successfully.');
     } else {
         sendError(500, 'Failed to update student profile.');
