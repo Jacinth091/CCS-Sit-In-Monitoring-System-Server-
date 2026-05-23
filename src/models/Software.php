@@ -7,25 +7,87 @@ class Software {
         $this->conn = $db;
     }
 
-    public function getAll() {
-        $query = "SELECT s.id, s.name, s.version, s.description, s.icon_path, s.is_active, s.created_at,
-                         COALESCE(
-                             json_agg(json_build_object('id', l.id, 'name', l.name, 'lab_code', l.lab_code)) 
-                             FILTER (WHERE l.id IS NOT NULL), '[]'
-                         ) as labs
-                  FROM software s
-                  LEFT JOIN lab_software ls ON s.id = ls.software_id
-                  LEFT JOIN laboratories l ON ls.lab_id = l.id
-                  WHERE s.deleted_at IS NULL
-                  GROUP BY s.id
-                  ORDER BY s.name";
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($results as &$row) {
-            $row['labs'] = json_decode($row['labs'], true);
+    public function getAll($page = null, $per_page = null, $search = null) {
+        $params = [];
+        $searchClause = "";
+        
+        if ($search !== null && trim($search) !== "") {
+            $searchClause = " AND (s.name ILIKE :search OR s.version ILIKE :search OR s.description ILIKE :search)";
+            $params[':search'] = '%' . trim($search) . '%';
         }
-        return $results;
+
+        if ($page === null) {
+            $query = "SELECT s.id, s.name, s.version, s.description, s.icon_path, s.is_active, s.created_at,
+                             COALESCE(
+                                 json_agg(json_build_object('id', l.id, 'name', l.name, 'lab_code', l.lab_code)) 
+                                 FILTER (WHERE l.id IS NOT NULL), '[]'
+                             ) as labs
+                      FROM software s
+                      LEFT JOIN lab_software ls ON s.id = ls.software_id
+                      LEFT JOIN laboratories l ON ls.lab_id = l.id
+                      WHERE s.deleted_at IS NULL
+                      " . $searchClause . "
+                      GROUP BY s.id
+                      ORDER BY s.name";
+            $stmt = $this->conn->prepare($query);
+            foreach ($params as $key => $val) {
+                $stmt->bindValue($key, $val);
+            }
+            $stmt->execute();
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($results as &$row) {
+                $row['labs'] = json_decode($row['labs'], true);
+            }
+            return $results;
+        } else {
+            // Count query
+            $countQuery = "SELECT COUNT(DISTINCT s.id) FROM software s WHERE s.deleted_at IS NULL" . $searchClause;
+            $countStmt = $this->conn->prepare($countQuery);
+            foreach ($params as $key => $val) {
+                $countStmt->bindValue($key, $val);
+            }
+            $countStmt->execute();
+            $totalRecords = (int)$countStmt->fetchColumn();
+
+            // Paginated query
+            $offset = ($page - 1) * $per_page;
+            $query = "SELECT s.id, s.name, s.version, s.description, s.icon_path, s.is_active, s.created_at,
+                             COALESCE(
+                                 json_agg(json_build_object('id', l.id, 'name', l.name, 'lab_code', l.lab_code)) 
+                                 FILTER (WHERE l.id IS NOT NULL), '[]'
+                             ) as labs
+                      FROM software s
+                      LEFT JOIN lab_software ls ON s.id = ls.software_id
+                      LEFT JOIN laboratories l ON ls.lab_id = l.id
+                      WHERE s.deleted_at IS NULL
+                      " . $searchClause . "
+                      GROUP BY s.id
+                      ORDER BY s.name
+                      LIMIT :limit OFFSET :offset";
+            
+            $stmt = $this->conn->prepare($query);
+            foreach ($params as $key => $val) {
+                $stmt->bindValue($key, $val);
+            }
+            $stmt->bindValue(':limit', $per_page, PDO::PARAM_INT);
+            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $stmt->execute();
+            
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($results as &$row) {
+                $row['labs'] = json_decode($row['labs'], true);
+            }
+            
+            return [
+                'records' => $results,
+                'meta' => [
+                    'total' => $totalRecords,
+                    'page' => $page,
+                    'per_page' => $per_page,
+                    'last_page' => ceil($totalRecords / $per_page)
+                ]
+            ];
+        }
     }
 
     public function getByLab($lab_id) {
