@@ -14,3 +14,6 @@
 # Local Gemini CLI and agent artifacts
 /.agents/
 /.gemini/
+
+# Documentation
+docs/
