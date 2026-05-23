@@ -30,34 +30,90 @@
             $this->conn = $db;
         }
 
-        public function read(){
-            $query = 'SELECT 
-                id,
-                student_id,
-                first_name,
-                last_name,
-                middle_name,
-                course_level,
-                email,
-                session,
-                course,
-                address,
-                profile_pic,
-                is_active,
-                created_at,
-                updated_at,
-                deleted_at
-                FROM
-                '. $this->table .'
-                ORDER BY created_at DESC';
+        public function read($page = null, $per_page = null, $search = null) {
+            $params = [];
+            $searchClause = "";
+            
+            if ($search !== null && trim($search) !== "") {
+                $searchClause = " WHERE (student_id ILIKE :search OR first_name ILIKE :search OR last_name ILIKE :search OR middle_name ILIKE :search OR email ILIKE :search OR course ILIKE :search)";
+                $params[':search'] = '%' . trim($search) . '%';
+            }
 
-            //prepare statement
-            $stmt = $this->conn->prepare($query);
-            //execute query
+            if ($page === null) {
+                $query = 'SELECT 
+                    id,
+                    student_id,
+                    first_name,
+                    last_name,
+                    middle_name,
+                    course_level,
+                    email,
+                    session,
+                    course,
+                    address,
+                    profile_pic,
+                    is_active,
+                    created_at,
+                    updated_at,
+                    deleted_at
+                    FROM
+                    '. $this->table .'
+                    ' . $searchClause . '
+                    ORDER BY created_at DESC';
 
-            $stmt->execute();
-            return $stmt;
+                $stmt = $this->conn->prepare($query);
+                foreach ($params as $key => $val) {
+                    $stmt->bindValue($key, $val);
+                }
+                $stmt->execute();
+                return $stmt;
+            } else {
+                // Count query
+                $countQuery = 'SELECT COUNT(*) FROM ' . $this->table . $searchClause;
+                $countStmt = $this->conn->prepare($countQuery);
+                foreach ($params as $key => $val) {
+                    $countStmt->bindValue($key, $val);
+                }
+                $countStmt->execute();
+                $totalRecords = (int)$countStmt->fetchColumn();
 
+                // Paginated query
+                $offset = ($page - 1) * $per_page;
+                $query = 'SELECT 
+                    id,
+                    student_id,
+                    first_name,
+                    last_name,
+                    middle_name,
+                    course_level,
+                    email,
+                    session,
+                    course,
+                    address,
+                    profile_pic,
+                    is_active,
+                    created_at,
+                    updated_at,
+                    deleted_at
+                    FROM
+                    '. $this->table .'
+                    ' . $searchClause . '
+                    ORDER BY created_at DESC
+                    LIMIT :limit OFFSET :offset';
+
+                $stmt = $this->conn->prepare($query);
+                foreach ($params as $key => $val) {
+                    $stmt->bindValue($key, $val);
+                }
+                $stmt->bindValue(':limit', $per_page, PDO::PARAM_INT);
+                $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+                $stmt->execute();
+
+                return [
+                    'stmt' => $stmt,
+                    'total' => $totalRecords
+                ];
+            }
         }
 
         public function create(){
@@ -211,6 +267,7 @@
         // UPDATE student profile
         public function update() {
             $query = 'UPDATE ' . $this->table . ' SET
+                        student_id   = :student_id,
                         first_name   = :first_name,
                         last_name    = :last_name,
                         middle_name  = :middle_name,
@@ -225,6 +282,7 @@
 
             $stmt = $this->conn->prepare($query);
 
+            $this->student_id   = Validator::sanitizeString($this->student_id);
             $this->first_name   = Validator::sanitizeString($this->first_name);
             $this->last_name    = Validator::sanitizeString($this->last_name);
             $this->middle_name  = Validator::sanitizeString($this->middle_name);
@@ -236,6 +294,7 @@
             $this->profile_pic  = $this->profile_pic ?? null;
             $this->id           = Validator::sanitizeString($this->id);
 
+            $stmt->bindParam(':student_id',   $this->student_id);
             $stmt->bindParam(':first_name',   $this->first_name);
             $stmt->bindParam(':last_name',    $this->last_name);
             $stmt->bindParam(':middle_name',  $this->middle_name);
@@ -284,20 +343,42 @@
             }
         }
 
-        public function emailExist(){
-            $query = 'SELECT id FROM ' .$this->table. " WHERE email = :email LIMIT 1";
+        public function emailExist($exclude_id = null){
+            $query = 'SELECT id FROM ' .$this->table. " WHERE email = :email";
+            if ($exclude_id) {
+                $query .= " AND id != :exclude_id";
+            }
+            $query .= " LIMIT 1";
+            
             $stmt = $this->conn->prepare($query);
 
             $this->email = Validator::sanitizeEmail($this->email);
             $stmt->bindParam(':email', $this->email);
+            if ($exclude_id) {
+                $stmt->bindParam(':exclude_id', $exclude_id);
+            }
 
             $stmt->execute();
 
-            if($stmt->rowCount() > 0){
-                return true;
+            return $stmt->rowCount() > 0;
+        }
+
+        public function studentIdExist($student_id, $exclude_id = null) {
+            $query = 'SELECT id FROM ' . $this->table . " WHERE student_id = :student_id";
+            if ($exclude_id) {
+                $query .= " AND id != :exclude_id";
+            }
+            $query .= " LIMIT 1";
+
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':student_id', $student_id);
+            if ($exclude_id) {
+                $stmt->bindParam(':exclude_id', $exclude_id);
             }
 
-            return false;
+            $stmt->execute();
+
+            return $stmt->rowCount() > 0;
         }
 
     }
