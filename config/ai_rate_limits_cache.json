@@ -1,0 +1,56 @@
+{
+    "gemini": {
+        "model": "gemini-2.5-flash",
+        "updated_at": "2026-05-24 17:00:31",
+        "status": "operational",
+        "http_code": 200,
+        "retry_until": null,
+        "limit_requests": "N\/A",
+        "limit_tokens": "N\/A",
+        "remaining_requests": "0",
+        "remaining_tokens": "0",
+        "reset_requests": "N\/A",
+        "reset_tokens": "N\/A",
+        "retry_after": null,
+        "is_local": true
+    },
+    "groq": {
+        "model": "llama-3.3-70b-versatile",
+        "updated_at": "2026-05-24 15:54:31",
+        "limit_requests": "1000",
+        "limit_tokens": "12000",
+        "remaining_requests": "999",
+        "remaining_tokens": "11351",
+        "reset_requests": "1m26.4s",
+        "reset_tokens": "3.244s",
+        "retry_after": null
+    },
+    "groq_primary": {
+        "model": "llama-3.3-70b-versatile",
+        "updated_at": "2026-05-24 16:27:27",
+        "status": "operational",
+        "http_code": 200,
+        "retry_until": null,
+        "limit_requests": "1000",
+        "limit_tokens": "12000",
+        "remaining_requests": "998",
+        "remaining_tokens": "9557",
+        "reset_requests": "2m52.8s",
+        "reset_tokens": "12.215s",
+        "retry_after": null
+    },
+    "groq_fallback": {
+        "model": "meta-llama\/llama-4-scout-17b-16e-instruct",
+        "updated_at": "2026-05-24 16:06:39",
+        "status": "operational",
+        "http_code": 200,
+        "retry_until": null,
+        "limit_requests": "1000",
+        "limit_tokens": "30000",
+        "remaining_requests": "999",
+        "remaining_tokens": "27733",
+        "reset_requests": "1m26.4s",
+        "reset_tokens": "4.534s",
+        "retry_after": null
+    }
+}
