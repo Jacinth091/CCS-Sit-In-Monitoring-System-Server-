@@ -15,5 +15,10 @@
 /.agents/
 /.gemini/
 
+# AI keys — never commit
+config/ai.php
+config/ai_settings.json
+config/ai_limits.php
+
 # Documentation
 docs/

@@ -53,7 +53,7 @@
         exit();
     }
 
-    function sendError($httpCode, $userMessage, $exception = null) {
+    function sendError($httpCode, $userMessage, $debug = null) {
         http_response_code($httpCode);
         
         $response = [
@@ -61,17 +61,21 @@
             'message' => $userMessage
         ];
 
-        if ($exception !== null) {
-            $response['debug'] = [
-                'file' => $exception->getFile(),
-                'line' => $exception->getLine(),
-                'sql_error' => $exception->getMessage(),
-                'sql_state' => $exception->getCode() 
-            ];
+        if ($debug !== null) {
+            if ($debug instanceof Exception || $debug instanceof Throwable) {
+                $response['debug'] = [
+                    'file' => $debug->getFile(),
+                    'line' => $debug->getLine(),
+                    'message' => $debug->getMessage(),
+                    'code' => $debug->getCode() 
+                ];
+            } else {
+                $response['debug'] = $debug;
+            }
         }
 
         echo json_encode($response);
-        exit(); // Crucial: This stops the script from double-printing JSON
+        exit(); 
     }
 
     /**

@@ -1,6 +1,7 @@
 <?php 
 require_once __DIR__ . '/../../includes/cors.php'; 
 require_once __DIR__ . '/../../includes/initialize.php';
+require_once __DIR__ . '/../../src/middleware/AiAuthMiddleware.php';
 
 use Firebase\JWT\JWT;
 
@@ -34,6 +35,21 @@ try {
         ];
 
         $jwt = JWT::encode($payload, $secretKey, 'HS256');
+
+        // Register session in user_sessions
+        $tokenHash   = hash('sha256', $jwt);
+        $fingerprint = hash('sha256', ($_SERVER['HTTP_USER_AGENT'] ?? '') . '|' . ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''));
+        $expiresAt   = date('Y-m-d H:i:s', $payload['exp']);
+        $clientIp    = AiAuthMiddleware::getClientIp();
+
+        $stmtSession = $db->prepare(
+            "INSERT INTO user_sessions (user_id, role, token_hash, device_fingerprint, ip_address, expires_at)
+             VALUES (?, ?, ?, ?, ?::inet, ?)"
+        );
+        $stmtSession->execute([
+            $payload['data']['id'], $payload['data']['role'], $tokenHash, $fingerprint,
+            $clientIp, $expiresAt
+        ]);
 
         sendSuccess(200, 'Admin login successful.', [
             'token' => $jwt,
@@ -71,6 +87,21 @@ try {
     ];
 
     $jwt = JWT::encode($payload, $secretKey, 'HS256');
+
+    // Register session in user_sessions
+    $tokenHash   = hash('sha256', $jwt);
+    $fingerprint = hash('sha256', ($_SERVER['HTTP_USER_AGENT'] ?? '') . '|' . ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''));
+    $expiresAt   = date('Y-m-d H:i:s', $payload['exp']);
+    $clientIp    = AiAuthMiddleware::getClientIp();
+
+    $stmtSession = $db->prepare(
+        "INSERT INTO user_sessions (user_id, role, token_hash, device_fingerprint, ip_address, expires_at)
+         VALUES (?, ?, ?, ?, ?::inet, ?)"
+    );
+    $stmtSession->execute([
+        $payload['data']['id'], $payload['data']['role'], $tokenHash, $fingerprint,
+        $clientIp, $expiresAt
+    ]);
 
     $userData = [
         'role'         => 'student',
