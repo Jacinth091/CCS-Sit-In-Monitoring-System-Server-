@@ -8,6 +8,9 @@ class TestimonialSeeder {
     }
 
     public function run() {
+        // Truncate existing testimonials
+        $this->db->exec("TRUNCATE TABLE testimonials RESTART IDENTITY CASCADE");
+
         // Get some students
         $stmt = $this->db->query("SELECT student_id FROM students LIMIT 5");
         $students = $stmt->fetchAll(PDO::FETCH_COLUMN);

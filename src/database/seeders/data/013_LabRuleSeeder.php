@@ -6,6 +6,9 @@ class LabRuleSeeder {
     public function __construct($db) { $this->db = $db; }
 
     public function run() {
+        // Truncate existing lab rules
+        $this->db->exec("TRUNCATE TABLE lab_rules RESTART IDENTITY CASCADE");
+
         $data = [
             [
                 'title' => 'Decorum & Silence',
