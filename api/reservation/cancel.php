@@ -21,8 +21,8 @@ try {
 
     if ($resModel->cancelByStudent($data['id'], $student->student_id)) {
         
-        $action = "Reservation cancelled by student";
-        $description = "Reservation #{$data['id']} (PC #{$res['pc_number']}) was cancelled by student {$student->student_id}";
+        $action = "Reservation rejected by student";
+        $description = "Reservation #{$data['id']} (PC #{$res['pc_number']}) was rejected by student {$student->student_id}";
 
         $auditLog->write(
             'Reservation cancelled',
@@ -35,9 +35,9 @@ try {
             $action
         );
 
-        sendSuccess(200, "Reservation cancelled.");
+        sendSuccess(200, "Reservation rejected.");
     } else {
-        sendError(400, "Unable to cancel reservation. It may already be approved, rejected, or doesn't belong to you.");
+        sendError(400, "Unable to reject reservation. It may already be rejected or doesn't belong to you.");
     }
 } catch (Exception $e) {
     sendError(500, "An error occurred.", $e);

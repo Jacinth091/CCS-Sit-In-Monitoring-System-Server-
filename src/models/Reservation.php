@@ -142,8 +142,9 @@ class Reservation {
 
     public function cancelByStudent($id, $student_id) {
         $query = "UPDATE " . $this->table . " 
-                  SET status = 'cancelled', updated_at = NOW()
-                  WHERE id = :id AND student_id = :student_id AND status = 'pending'";
+                  SET status = 'rejected', updated_at = NOW()
+                  WHERE id = :id AND student_id = :student_id
+                    AND status IN ('pending', 'approved', 'rescheduled')";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':id', $id);
