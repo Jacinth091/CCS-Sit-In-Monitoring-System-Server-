@@ -4,6 +4,7 @@ require_once '../../includes/initialize.php';
 require_once '../../config/ai.php';
 require_once '../../src/helpers/AiContextBuilder.php';
 require_once '../../src/helpers/gemini.php';
+require_once '../../src/helpers/groq.php';
 require_once '../../src/helpers/AiCache.php';
 require_once '../../src/middleware/AiAuthMiddleware.php';
 
@@ -26,7 +27,7 @@ $recordCount = count($records);
 //       filters produce different cache entries. TTL: 2 hours. ───────────────
 $recordIds = array_column($records, 'id');
 sort($recordIds);
-$cacheKey  = 'report_summary:' . md5(implode(',', $recordIds));
+$cacheKey  = 'report_summary:v3:' . md5(implode(',', $recordIds));
 $cached    = AiCache::get($db, $cacheKey);
 if ($cached) {
     sendSuccess(200, 'Report summary retrieved', $cached, ['_cache' => true]);
@@ -109,8 +110,7 @@ try {
     }
 
     // ── 4. Prompt — AI receives aggregated metrics, not raw rows ─────────────
-    $prompt  = "You are a professional administrative reporting assistant for a university computer laboratory.\n";
-    $prompt .= "Analyze these pre-aggregated report metrics and generate a concise executive summary.\n";
+    $prompt  = "Analyze these pre-aggregated report metrics for a university computer laboratory and generate a concise executive summary.\n";
     $prompt .= "Output ONLY a raw JSON object. No markdown, no code blocks.\n\n";
 
     $prompt .= "## Report Metadata\n";
@@ -153,11 +153,14 @@ try {
     $prompt .= "  - 'value': max 8 chars, e.g. 'Lab 5', 'Coding', '92 min'\n";
     $prompt .= "  - 'desc': max 5 words, e.g. 'highest traffic laboratory'\n";
 
-    $rawResponse = callGemini($prompt);
+    // Use Groq as primary for this endpoint as per user preference/reliability
+    $systemPrompt = "You are a professional administrative reporting assistant. Respond only with valid JSON.";
+    $messages = [['role' => 'user', 'content' => $prompt]];
+    $rawResponse = callGroq($systemPrompt, $messages, SUMMARY_MAX_TOKENS);
 
     // ── 5. Handle AI failure / rate limit ────────────────────────────────────
     if ($rawResponse === null) {
-        $aiError  = getLastGeminiError();
+        $aiError  = getLastGroqError();
         $fallback = buildReportFallback($recordCount, $meta, $labDist, $purposeDist);
         if ($aiError && $aiError['http_code'] === 429) {
             $fallback['is_fallback']     = true;
@@ -175,14 +178,23 @@ try {
     $aiData      = json_decode($cleanedJson, true);
 
     if (json_last_error() !== JSON_ERROR_NONE || !isset($aiData['headline'])) {
-        error_log('Gemini Report Summary Parse Error: ' . $rawResponse);
+        error_log('Groq Report Summary Parse Error: ' . $rawResponse);
         sendError(500, 'AI response format was invalid. Please try again.');
     }
+
+    $topLabName   = $labDist[0]['lab_code'] ?? ($labDist[0]['lab_name'] ?? '—');
+    $topCourse    = $courseDist[0]['course'] ?? '—';
+    $avgDuration  = isset($meta['avg_duration_min']) ? ((int) round((float) $meta['avg_duration_min'])) . ' min' : '—';
 
     $payload = [
         'headline'     => $aiData['headline'],
         'summary'      => $aiData['summary'],
-        'metrics'      => $aiData['metrics'],
+        // Force key metrics from real aggregates to avoid AI drift
+        'metrics'      => [
+            ['label' => 'Busy Lab',    'value' => (string) $topLabName,  'desc' => 'highest traffic'],
+            ['label' => 'Peak Session','value' => (string) $avgDuration, 'desc' => 'avg duration'],
+            ['label' => 'Top Course',  'value' => (string) $topCourse,   'desc' => 'most sessions'],
+        ],
         // Raw SQL aggregates included so frontend can render tables independently
         'aggregates'   => [
             'purpose_distribution' => $purposeDist,
@@ -193,7 +205,7 @@ try {
     ];
 
     // ── 7. Cache (2-hour TTL, keyed on record hash) ───────────────────────────
-    AiCache::set($db, $cacheKey, 'report_summary', $payload, ttlHours: 2);
+    AiCache::set($db, $cacheKey, 'report_summary', $payload, ttlHours: 2, modelUsed: GROQ_CHAT_MODEL);
     AiAuthMiddleware::logUsage($userId, $role, 'report_summary', $db);
     sendSuccess(200, 'AI report summary generated successfully', $payload);
 
