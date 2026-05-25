@@ -10,15 +10,24 @@ $lastGeminiError = null;
 function attemptGroqFallbackForAnalysis(string $prompt, ?int $maxTokens): ?string {
   try {
     require_once __DIR__ . '/groq.php';
-    error_log("Gemini unavailable or rate-limited. Attempting fallback to Groq for analysis...");
+    error_log("Gemini unavailable or rate-limited. Attempting fallback to Groq Llama Scout for analysis...");
 
     $systemPrompt = "You are an analytical assistant for a university computer laboratory monitoring system. Output response exactly as requested.";
     $messages = [['role' => 'user', 'content' => $prompt]];
 
-    // Call callGroq (which automatically attempts primary & fallback Llama Scout models)
-    $response = callGroq($systemPrompt, $messages, $maxTokens ?? 1500);
+    // Attempt the Llama Scout model directly first
+    $fallbackModel = defined('GROQ_CHAT_MODEL_FALLBACK') ? GROQ_CHAT_MODEL_FALLBACK : 'meta-llama/llama-4-scout-17b-16e-instruct';
+    $response = callGroqWithModel($systemPrompt, $messages, $fallbackModel, $maxTokens ?? 1500, true);
     if ($response !== null) {
-      error_log("Fallback to Groq succeeded.");
+      error_log("Fallback to Groq Llama Scout succeeded.");
+      return $response;
+    }
+
+    // Try the primary model if Scout fails
+    error_log("Groq Llama Scout model failed. Attempting primary Groq model...");
+    $response = callGroqWithModel($systemPrompt, $messages, GROQ_CHAT_MODEL, $maxTokens ?? 1500, false);
+    if ($response !== null) {
+      error_log("Fallback to primary Groq model succeeded.");
       return $response;
     }
   } catch (\Exception $e) {
