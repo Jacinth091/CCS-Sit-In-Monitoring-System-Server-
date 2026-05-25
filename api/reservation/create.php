@@ -27,6 +27,13 @@ try {
         sendError(403, "Reservations are currently disabled.");
     }
 
+    // Check if the student already has an ongoing sit-in session
+    $sitInModel = new SitIn($db);
+    $sitInModel->student_id = $student->student_id;
+    if ($sitInModel->getOngoingSession()) {
+        sendError(409, "You cannot make a reservation while you have an ongoing sit-in session.");
+    }
+
     $pc_number = !empty($data['pc_number']) ? $data['pc_number'] : null;
 
     if ($pc_number && $resModel->isSlotTaken($data['lab_id'], $pc_number, $data['reserved_date'], $data['time_slot'])) {
