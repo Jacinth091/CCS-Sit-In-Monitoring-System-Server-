@@ -62,30 +62,8 @@ PHP;
 
 function runMigrateFresh($db) {
     echo "=== CCS Sit-In Monitoring — Fresh Migration ===\n\n";
-
-    echo "Dropping all tables...\n";
-
-    // Drop in reverse order to respect foreign key constraints
-    $tables = [
-        'feedback',
-        'reservations',
-        'sit_in_logs',
-        'announcements',
-        'laboratories',
-        'students',
-        'seeders',
-        'migrations',
-    ];
-
-    foreach ($tables as $table) {
-        $db->exec("DROP TABLE IF EXISTS {$table} CASCADE");
-        echo "  → Dropped: {$table}\n";
-    }
-
-    echo "\nRe-running all migrations...\n\n";
-
     $migration = new Migration($db);
-    $migration->run();
+    $migration->fresh();
 }
 
 function runMakeSeeder($name) {

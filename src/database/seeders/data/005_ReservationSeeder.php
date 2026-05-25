@@ -7,7 +7,7 @@ class ReservationSeeder {
 
     public function run() {
         // Clear existing reservations
-        $this->db->exec("TRUNCATE TABLE reservations RESTART IDENTITY CASCADE");
+        $this->db->exec("DELETE FROM reservations");
 
         $students = $this->db->query("SELECT student_id FROM students")->fetchAll(PDO::FETCH_COLUMN);
         $labs = $this->db->query("SELECT id, capacity FROM laboratories WHERE is_active = true")->fetchAll(PDO::FETCH_ASSOC);
