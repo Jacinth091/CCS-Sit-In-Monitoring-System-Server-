@@ -4,6 +4,9 @@
 .dockerenv
 .DS_Store
 
+# Node modules
+node_modules/
+
 /vendor
 
 # Ignore all uploads folders recursively
