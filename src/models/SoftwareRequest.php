@@ -8,15 +8,16 @@ class SoftwareRequest {
         $this->conn = $db;
     }
 
-    public function create($student_id, $software_name, $reason = null, $lab_id = null) {
-        $query = "INSERT INTO " . $this->table . " (student_id, lab_id, software_name, reason) 
-                  VALUES (:student_id, :lab_id, :software_name, :reason)";
+    public function create($student_id, $software_name, $reason = null, $lab_id = null, $version = null) {
+        $query = "INSERT INTO " . $this->table . " (student_id, lab_id, software_name, reason, version) 
+                  VALUES (:student_id, :lab_id, :software_name, :reason, :version)";
         $stmt = $this->conn->prepare($query);
         
         $stmt->bindParam(':student_id', $student_id);
         $stmt->bindParam(':lab_id', $lab_id, $lab_id === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
         $stmt->bindParam(':software_name', $software_name);
         $stmt->bindParam(':reason', $reason);
+        $stmt->bindParam(':version', $version);
         
         return $stmt->execute();
     }
@@ -24,7 +25,8 @@ class SoftwareRequest {
     public function getAll($status = null) {
         $query = "SELECT sr.*, 
                          s.first_name, s.last_name, s.course,
-                         l.name as lab_name
+                         l.name as lab_name, l.lab_code as lab_code,
+                         (SELECT COUNT(*) FROM software WHERE LOWER(name) = LOWER(sr.software_name) AND deleted_at IS NULL) as is_installed
                   FROM " . $this->table . " sr
                   JOIN students s ON sr.student_id = s.student_id
                   LEFT JOIN laboratories l ON sr.lab_id = l.id";
@@ -45,7 +47,8 @@ class SoftwareRequest {
     }
 
     public function getByStudent($student_id) {
-        $query = "SELECT sr.*, l.name as lab_name
+        $query = "SELECT sr.*, l.name as lab_name, l.lab_code as lab_code,
+                         (SELECT COUNT(*) FROM software WHERE LOWER(name) = LOWER(sr.software_name) AND deleted_at IS NULL) as is_installed
                   FROM " . $this->table . " sr
                   LEFT JOIN laboratories l ON sr.lab_id = l.id
                   WHERE sr.student_id = :student_id
