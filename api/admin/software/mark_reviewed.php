@@ -25,6 +25,10 @@ try {
         $auditLog = new AuditLog($db);
         $auditLog->write('software_request', $userData->student_id, 'admin', "Marked " . count($data['request_ids']) . " requests as reviewed", 'software_request', null, null, 'update');
         
+        // Invalidate cache
+        require_once __DIR__ . '/../../../src/helpers/AiCache.php';
+        AiCache::invalidate($db, 'software_demand');
+
         // Notify each student
         foreach ($requests as $req) {
             create_notification(

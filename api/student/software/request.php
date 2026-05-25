@@ -16,10 +16,15 @@ try {
         $userData->student_id, 
         $data['software_name'], 
         $data['reason'] ?? null, 
-        $data['lab_id'] ?? null
+        $data['lab_id'] ?? null,
+        $data['version'] ?? null
     );
     
     if ($success) {
+        // Invalidate the cache to ensure admin gets the latest demand reports
+        require_once __DIR__ . '/../../../src/helpers/AiCache.php';
+        AiCache::invalidate($db, 'software_demand');
+
         sendSuccess(201, "Software request submitted successfully.");
     } else {
         sendError(500, "Failed to submit request.");

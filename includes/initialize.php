@@ -27,6 +27,7 @@
     require_once(MODEL_PATH . DS . 'Report.php');
     require_once(MODEL_PATH . DS . 'Reservation.php');
     require_once(MODEL_PATH . DS . 'Software.php');
+    require_once(MODEL_PATH . DS . 'SoftwareRequest.php');
     require_once(MODEL_PATH . DS . 'Laboratory.php');
     require_once(MODEL_PATH . DS . 'LabRule.php');
     require_once(MODEL_PATH . DS . 'Testimonial.php');
