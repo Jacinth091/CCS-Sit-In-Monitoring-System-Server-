@@ -4,6 +4,7 @@ require_once '../../includes/initialize.php';
 require_once '../../config/ai.php';
 require_once '../../src/helpers/AiContextBuilder.php';
 require_once '../../src/helpers/gemini.php';
+require_once '../../src/helpers/AiCache.php';
 
 require_once '../../src/middleware/AiAuthMiddleware.php';
 
@@ -17,6 +18,18 @@ $role   = $auth['role'];
 // Auth: Students only
 $currentUser = requireStudent();
 $studentId = $currentUser->student_id;
+
+// ── 1. Cache check (per student, 12-hour TTL) ─────────────────────────────────
+$cacheKey    = 'student_insights:' . $studentId;
+$bypassCache = !empty($input['bypass_cache']);
+
+if (!$bypassCache) {
+    $cached = AiCache::get($db, $cacheKey);
+    if ($cached) {
+        sendSuccess(200, 'Student insights retrieved successfully', $cached, ['_cache' => true]);
+        exit;
+    }
+}
 
 // Sandbox Mode Check
 if (!AI_ENABLED) {
@@ -52,6 +65,24 @@ try {
     $contextBuilder = new AiContextBuilder($db);
     $context = $contextBuilder->forStudent($studentId);
 
+    // ── Compute data fingerprint from key student metrics ─────────────────
+    $fingerprint = AiCache::fingerprint([
+        'credits'   => $context['profile']['session'] ?? 0,
+        'sessions'  => $context['session_stats']['total_sessions'] ?? 0,
+        'minutes'   => $context['session_stats']['total_minutes'] ?? 0,
+        'recentCnt' => count($context['recent_sessions'] ?? []),
+        'resCnt'    => count($context['upcoming_reservations'] ?? []),
+    ]);
+
+    // If bypass_cache was requested, check if data actually changed
+    if ($bypassCache) {
+        $fresh = AiCache::checkFreshness($db, $cacheKey, $fingerprint);
+        if ($fresh) {
+            sendSuccess(200, 'Data unchanged since last analysis. Returning cached insights.', $fresh, ['_cache' => true, '_data_unchanged' => true]);
+            exit;
+        }
+    }
+
     $prompt = "You are an analytical assistant for a university computer laboratory monitoring system.\n";
     $prompt .= "Analyze this student's real-time system context and output EXACTLY a raw JSON object containing a student activity summary and exactly 3 insight cards.\n";
     $prompt .= "No markdown formatting, no conversational filler, no code blocks. Just valid JSON.\n\n";
@@ -74,10 +105,13 @@ try {
     if (!empty($context['upcoming_reservations'])) {
         $prompt .= "## Upcoming Reservations\n";
         foreach ($context['upcoming_reservations'] as $r) {
-            $prompt .= "- Lab: " . $r['lab_code'] . ", PC: " . $r['pc_number'] . ", Date: " . $r['reserved_date'] . " at " . $r['reserved_time'] . " (" . $r['status'] . ")\n";
+            $reservedTime12 = date('g:i A', strtotime($r['reserved_time']));
+            $prompt .= "- Lab: " . $r['lab_code'] . ", PC: " . $r['pc_number'] . ", Date: " . $r['reserved_date'] . " at " . $reservedTime12 . " (" . $r['status'] . ")\n";
         }
         $prompt .= "\n";
     }
+
+    $prompt .= "Always format dates and times using the 12-hour AM/PM format (e.g. 2:30 PM, 10:15 AM) in all generated summary and card descriptions. Never use 24-hour time formatting (e.g. 14:30).\n\n";
 
     $prompt .= "\n## Instructions for output format:\n";
     $prompt .= "Generate a JSON object with exactly two keys: 'summary' and 'cards'.\n";
@@ -143,6 +177,11 @@ try {
         error_log("Gemini JSON Parse Error on: " . $rawResponse);
         sendError(500, 'AI response format was invalid: ' . $rawResponse);
     }
+
+    $insights['_generated_at'] = date('Y-m-d H:i:s');
+
+    // Cache the successful result for 12 hours
+    AiCache::set($db, $cacheKey, 'student_insights', $insights, 12.0, fingerprint: $fingerprint);
 
     AiAuthMiddleware::logUsage($userId, $role, 'student_insights', $db);
     sendSuccess(200, 'AI student insights retrieved successfully', $insights);

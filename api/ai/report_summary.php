@@ -4,138 +4,216 @@ require_once '../../includes/initialize.php';
 require_once '../../config/ai.php';
 require_once '../../src/helpers/AiContextBuilder.php';
 require_once '../../src/helpers/gemini.php';
-
+require_once '../../src/helpers/AiCache.php';
 require_once '../../src/middleware/AiAuthMiddleware.php';
 
-// Get POST data
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input   = json_decode(file_get_contents("php://input"), true) ?? [];
 $records = $input['records'] ?? [];
 
-// Guard the AI endpoint
-$auth = AiAuthMiddleware::guard('report_summary', $db, $input);
+$auth   = AiAuthMiddleware::guard('report_summary', $db, $input);
 $userId = $auth['user_id'];
 $role   = $auth['role'];
 
-// Auth: Admins only
 $currentUser = requireAdmin();
 
-if (!is_array($records)) {
-    sendError(400, 'Invalid request. Records array is required.');
+if (!is_array($records) || empty($records)) {
+    sendError(400, 'Invalid request. A non-empty records array is required.');
 }
 
 $recordCount = count($records);
 
-// Sandbox Mode Check
-if (!AI_ENABLED) {
-    $sandboxSummary = [
-        'headline' => 'Laboratory Usage Report Compiled',
-        'summary'  => 'Analyzed ' . $recordCount . ' records. Traffic is heavily concentrated in programming and computer science slots, with average study sessions lasting approximately 90 minutes. Lab capacity remains stable.',
-        'metrics'  => [
-            [
-                'label' => 'Total Volume',
-                'value' => (string) $recordCount,
-                'desc'  => 'logs analyzed'
-            ],
-            [
-                'label' => 'Primary Purpose',
-                'value' => 'Coding',
-                'desc'  => 'most frequent reason'
-            ],
-            [
-                'label' => 'Peak Lab Hub',
-                'value' => 'Lab 5',
-                'desc'  => 'highest traffic volume'
-            ]
-        ]
-    ];
-    AiAuthMiddleware::logUsage($userId, $role, 'report_summary', $db);
-    sendSuccess(200, 'Sandbox report summary generated', $sandboxSummary, ['_sandbox' => true]);
+// ── 1. Cache check — keyed on a hash of the record IDs so different report
+//       filters produce different cache entries. TTL: 2 hours. ───────────────
+$recordIds = array_column($records, 'id');
+sort($recordIds);
+$cacheKey  = 'report_summary:' . md5(implode(',', $recordIds));
+$cached    = AiCache::get($db, $cacheKey);
+if ($cached) {
+    sendSuccess(200, 'Report summary retrieved', $cached, ['_cache' => true]);
+    exit;
 }
 
-// Live AI Inference
+// ── 2. Sandbox fallback ───────────────────────────────────────────────────────
+if (!AI_ENABLED) {
+    $sandbox = buildReportFallback($recordCount);
+    AiAuthMiddleware::logUsage($userId, $role, 'report_summary', $db);
+    sendSuccess(200, 'Sandbox report summary generated', $sandbox, ['_sandbox' => true]);
+    exit;
+}
+
+// ── 3. SQL-side pre-aggregation — compute metrics from the submitted record IDs
+//       rather than sending raw rows to the AI. ───────────────────────────────
 try {
-    $contextBuilder = new AiContextBuilder($db);
-    $reportContext = $contextBuilder->forReport(array_slice($records, 0, 50)); // slice to avoid payload limits
+    // Pluck up to 500 IDs to keep the IN clause safe
+    $safeIds = array_slice(array_map('strval', $recordIds), 0, 500);
 
-    $prompt = "You are a professional administrative reporting assistant for a university computer laboratory.\n";
-    $prompt .= "Analyze these report rows and generate a summarized view as a raw JSON object.\n";
-    $prompt .= "Do not include any conversational text, code blocks, or markdown formatting. Just raw valid JSON.\n\n";
+    if (!empty($safeIds)) {
+        $placeholders = implode(',', array_fill(0, count($safeIds), '?'));
 
-    $prompt .= "## Report Data Payload\n";
-    $prompt .= "Total records in full report: " . $recordCount . "\n";
-    $prompt .= "Sample of report rows:\n";
-    foreach ($reportContext['report_rows'] as $r) {
-        $prompt .= "- Student ID: " . ($r['student_id'] ?? 'N/A') . ", Lab: " . ($r['name'] ?? $r['lab_code'] ?? 'N/A') . ", PC: " . ($r['pc_number'] ?? 'N/A') . ", Date: " . ($r['date'] ?? 'N/A') . ", Time: " . ($r['time_in'] ?? '') . " - " . ($r['time_out'] ?? '') . ", Purpose: " . ($r['purpose'] ?? 'N/A') . ", Status: " . ($r['status'] ?? 'N/A') . "\n";
+        // Purpose breakdown
+        $stmtPurpose = $db->prepare("
+            SELECT purpose, COUNT(*) AS cnt
+            FROM sit_in_logs
+            WHERE id IN ({$placeholders}) AND deleted_at IS NULL
+            GROUP BY purpose
+            ORDER BY cnt DESC
+            LIMIT 5
+        ");
+        $stmtPurpose->execute($safeIds);
+        $purposeDist = $stmtPurpose->fetchAll(PDO::FETCH_ASSOC);
+
+        // Lab breakdown
+        $stmtLab = $db->prepare("
+            SELECT l.name AS lab_name, l.lab_code, COUNT(*) AS cnt
+            FROM sit_in_logs s
+            JOIN laboratories l ON l.id = s.lab_id
+            WHERE s.id IN ({$placeholders}) AND s.deleted_at IS NULL
+            GROUP BY l.id, l.name, l.lab_code
+            ORDER BY cnt DESC
+            LIMIT 5
+        ");
+        $stmtLab->execute($safeIds);
+        $labDist = $stmtLab->fetchAll(PDO::FETCH_ASSOC);
+
+        // Average session duration + date range
+        $stmtMeta = $db->prepare("
+            SELECT
+                ROUND(AVG(EXTRACT(EPOCH FROM (time_out - time_in)) / 60), 1) AS avg_duration_min,
+                MIN(time_in::date) AS date_from,
+                MAX(time_in::date) AS date_to,
+                COUNT(CASE WHEN status = 'completed' THEN 1 END)             AS completed_count,
+                COUNT(CASE WHEN status = 'ongoing'   THEN 1 END)             AS ongoing_count
+            FROM sit_in_logs
+            WHERE id IN ({$placeholders})
+              AND deleted_at IS NULL
+              AND time_out IS NOT NULL
+        ");
+        $stmtMeta->execute($safeIds);
+        $meta = $stmtMeta->fetch(PDO::FETCH_ASSOC);
+
+        // Top course breakdown
+        $stmtCourse = $db->prepare("
+            SELECT s.course, COUNT(*) AS cnt
+            FROM sit_in_logs sl
+            JOIN students s ON s.student_id = sl.student_id
+            WHERE sl.id IN ({$placeholders}) AND sl.deleted_at IS NULL
+            GROUP BY s.course
+            ORDER BY cnt DESC
+            LIMIT 3
+        ");
+        $stmtCourse->execute($safeIds);
+        $courseDist = $stmtCourse->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $purposeDist = $labDist = $courseDist = [];
+        $meta = [];
     }
 
-    $prompt .= "\n## Instructions for output format:\n";
-    $prompt .= "Output exactly a JSON object containing:\n";
-    $prompt .= "- 'headline': High-level report overview (max 6 words, e.g. 'Lab 5 Leads Weekly Utilization')\n";
-    $prompt .= "- 'summary': One concise summarizing paragraph (max 40 words, professional, outlining patterns/insights)\n";
-    $prompt .= "- 'metrics': Array of exactly 3 objects representing core metrics. Each metric must contain:\n";
-    $prompt .= "  - 'label': Short card name (max 3 words, e.g. 'Peak Hour' or 'Busy Lab')\n";
-    $prompt .= "  - 'value': Data value (max 8 characters, e.g. 'CS-202', 'Coding', 'Lab 5')\n";
-    $prompt .= "  - 'desc': Detail caption (max 5 words, e.g. 'most active student year' or 'hours logged')\n\n";
+    // ── 4. Prompt — AI receives aggregated metrics, not raw rows ─────────────
+    $prompt  = "You are a professional administrative reporting assistant for a university computer laboratory.\n";
+    $prompt .= "Analyze these pre-aggregated report metrics and generate a concise executive summary.\n";
+    $prompt .= "Output ONLY a raw JSON object. No markdown, no code blocks.\n\n";
 
-    $prompt .= "Example structure:\n";
-    $prompt .= '{\n';
-    $prompt .= '  "headline": "High Programming Lab Utilization",\n';
-    $prompt .= '  "summary": "Laboratory reports indicate significant engagement in programming sessions, with Lab 5 being the primary hub. Average session times align with standard laboratory schedules.",\n';
-    $prompt .= '  "metrics": [\n';
-    $prompt .= '    {"label": "Total Count", "value": "' . $recordCount . '", "desc": "active logs analyzed"},\n';
-    $prompt .= '    {"label": "Top Program", "value": "BSCS", "desc": "most frequent course logged"},\n';
-    $prompt .= '    {"label": "Peak Hub", "value": "Lab 5", "desc": "highest traffic laboratory"}\n';
-    $prompt .= '  ]\n';
-    $prompt .= '}\n';
+    $prompt .= "## Report Metadata\n";
+    $prompt .= "- Total records in report: {$recordCount}\n";
+    $prompt .= "- Completed sessions: " . ($meta['completed_count'] ?? 'N/A') . "\n";
+    $prompt .= "- Ongoing sessions: "   . ($meta['ongoing_count']   ?? 'N/A') . "\n";
+    $prompt .= "- Average session duration: " . ($meta['avg_duration_min'] ?? 'N/A') . " minutes\n";
+    $prompt .= "- Date range covered: " . ($meta['date_from'] ?? 'N/A') . " to " . ($meta['date_to'] ?? 'N/A') . "\n\n";
+
+    if (!empty($purposeDist)) {
+        $prompt .= "## Top Session Purposes\n";
+        foreach ($purposeDist as $p) {
+            $prompt .= "- {$p['purpose']}: {$p['cnt']} sessions\n";
+        }
+        $prompt .= "\n";
+    }
+
+    if (!empty($labDist)) {
+        $prompt .= "## Top Labs by Session Volume\n";
+        foreach ($labDist as $l) {
+            $prompt .= "- {$l['lab_name']} ({$l['lab_code']}): {$l['cnt']} sessions\n";
+        }
+        $prompt .= "\n";
+    }
+
+    if (!empty($courseDist)) {
+        $prompt .= "## Top Courses\n";
+        foreach ($courseDist as $c) {
+            $prompt .= "- {$c['course']}: {$c['cnt']} sessions\n";
+        }
+        $prompt .= "\n";
+    }
+
+    $prompt .= "## Output Format\n";
+    $prompt .= "Return a JSON object with exactly these keys:\n";
+    $prompt .= "- 'headline': 6 words max. High-level report title, e.g. 'Lab 5 Leads Weekly Utilization'\n";
+    $prompt .= "- 'summary': 1 paragraph, max 50 words. Professional narrative outlining patterns and key takeaways from the aggregated data.\n";
+    $prompt .= "- 'metrics': Array of exactly 3 objects. Each must contain:\n";
+    $prompt .= "  - 'label': max 3 words, e.g. 'Peak Hour', 'Busy Lab'\n";
+    $prompt .= "  - 'value': max 8 chars, e.g. 'Lab 5', 'Coding', '92 min'\n";
+    $prompt .= "  - 'desc': max 5 words, e.g. 'highest traffic laboratory'\n";
 
     $rawResponse = callGemini($prompt);
 
+    // ── 5. Handle AI failure / rate limit ────────────────────────────────────
     if ($rawResponse === null) {
-        $aiError = getLastGeminiError();
+        $aiError  = getLastGeminiError();
+        $fallback = buildReportFallback($recordCount, $meta, $labDist, $purposeDist);
         if ($aiError && $aiError['http_code'] === 429) {
-            // Rate limited! Fallback to sandbox/mock summary gracefully
-            $sandboxSummary = [
-                'headline' => 'Laboratory Usage Report Compiled',
-                'summary'  => 'Analyzed ' . $recordCount . ' records. Traffic is heavily concentrated in programming and computer science slots, with average study sessions lasting approximately 90 minutes. Lab capacity remains stable.',
-                'metrics'  => [
-                    [
-                        'label' => 'Total Volume',
-                        'value' => (string) $recordCount,
-                        'desc'  => 'logs analyzed'
-                    ],
-                    [
-                        'label' => 'Primary Purpose',
-                        'value' => 'Coding',
-                        'desc'  => 'most frequent reason'
-                    ],
-                    [
-                        'label' => 'Peak Lab Hub',
-                        'value' => 'Lab 5',
-                        'desc'  => 'highest traffic volume'
-                    ]
-                ],
-                'is_fallback' => true,
-                'fallback_reason' => 'Rate limit cooldown active'
-            ];
+            $fallback['is_fallback']     = true;
+            $fallback['fallback_reason'] = 'Rate limit cooldown active';
             AiAuthMiddleware::logUsage($userId, $role, 'report_summary', $db);
-            sendSuccess(200, 'AI provider rate-limited. Serving local report summary.', $sandboxSummary);
+            sendSuccess(200, 'AI provider rate-limited. Serving local report summary.', $fallback);
+            exit;
         }
-
         $isDev = ($_ENV['APP_ENV'] ?? 'production') !== 'production';
         sendError(502, 'Failed to summarize report from AI provider.', $isDev ? $aiError : null);
     }
 
+    // ── 6. Parse + merge SQL aggregates + AI narrative ────────────────────────
     $cleanedJson = stripMarkdownFences($rawResponse);
-    $summary = json_decode($cleanedJson, true);
+    $aiData      = json_decode($cleanedJson, true);
 
-    if (json_last_error() !== JSON_ERROR_NONE || !is_array($summary)) {
-        error_log("Gemini Report Summary Parse Error on: " . $rawResponse);
+    if (json_last_error() !== JSON_ERROR_NONE || !isset($aiData['headline'])) {
+        error_log('Gemini Report Summary Parse Error: ' . $rawResponse);
         sendError(500, 'AI response format was invalid. Please try again.');
     }
 
+    $payload = [
+        'headline'     => $aiData['headline'],
+        'summary'      => $aiData['summary'],
+        'metrics'      => $aiData['metrics'],
+        // Raw SQL aggregates included so frontend can render tables independently
+        'aggregates'   => [
+            'purpose_distribution' => $purposeDist,
+            'lab_distribution'     => $labDist,
+            'course_distribution'  => $courseDist,
+            'meta'                 => $meta,
+        ],
+    ];
+
+    // ── 7. Cache (2-hour TTL, keyed on record hash) ───────────────────────────
+    AiCache::set($db, $cacheKey, 'report_summary', $payload, ttlHours: 2);
     AiAuthMiddleware::logUsage($userId, $role, 'report_summary', $db);
-    sendSuccess(200, 'AI report summary generated successfully', $summary);
+    sendSuccess(200, 'AI report summary generated successfully', $payload);
 
 } catch (Exception $e) {
     sendError(500, 'Server error during report summary extraction.', $e);
+}
+
+// ── Helper: deterministic fallback using real SQL data where available ────────
+function buildReportFallback(int $recordCount, array $meta = [], array $labDist = [], array $purposeDist = []): array {
+    $topLab     = $labDist[0]['lab_name']  ?? 'Lab 5';
+    $topPurpose = $purposeDist[0]['purpose'] ?? 'Coding';
+    $avgDur     = $meta['avg_duration_min'] ?? '~90';
+
+    return [
+        'headline' => 'Laboratory Usage Report Compiled',
+        'summary'  => "Analyzed {$recordCount} records. Sessions are concentrated in {$topPurpose} activities. {$topLab} leads in traffic volume with an average session duration of approximately {$avgDur} minutes.",
+        'metrics'  => [
+            ['label' => 'Total Volume',   'value' => (string)$recordCount,  'desc'  => 'logs analyzed'],
+            ['label' => 'Top Purpose',    'value' => $topPurpose,            'desc'  => 'most frequent reason'],
+            ['label' => 'Peak Lab',       'value' => $topLab,                'desc'  => 'highest traffic volume'],
+        ],
+    ];
 }
