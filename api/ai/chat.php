@@ -203,7 +203,9 @@ try {
         if (!empty($context['recent_sessions'])) {
             $systemPrompt .= "## Recent Sit-In Logs\n";
             foreach ($context['recent_sessions'] as $s) {
-                $systemPrompt .= "- Lab: " . $s['lab_name'] . " (" . $s['lab_code'] . "), PC: " . $s['pc_number'] . ", Date: " . substr($s['time_in'], 0, 10) . ", Duration: " . $s['duration_minutes'] . " mins, Purpose: " . $s['purpose'] . "\n";
+                $timeIn12 = date('Y-m-d g:i A', strtotime($s['time_in']));
+                $timeOut12 = $s['time_out'] ? date('Y-m-d g:i A', strtotime($s['time_out'])) : 'N/A';
+                $systemPrompt .= "- Lab: " . $s['lab_name'] . " (" . $s['lab_code'] . "), PC: " . $s['pc_number'] . ", Time In: " . $timeIn12 . ", Time Out: " . $timeOut12 . ", Duration: " . $s['duration_minutes'] . " mins, Purpose: " . $s['purpose'] . "\n";
             }
             $systemPrompt .= "\n";
         }
@@ -211,7 +213,8 @@ try {
         if (!empty($context['upcoming_reservations'])) {
             $systemPrompt .= "## Upcoming Reservations\n";
             foreach ($context['upcoming_reservations'] as $r) {
-                $systemPrompt .= "- Lab: " . $r['lab_name'] . ", PC: " . $r['pc_number'] . ", Date: " . $r['reserved_date'] . " at " . $r['reserved_time'] . " (" . $r['status'] . ")\n";
+                $reservedTime12 = date('g:i A', strtotime($r['reserved_time']));
+                $systemPrompt .= "- Lab: " . $r['lab_name'] . ", PC: " . $r['pc_number'] . ", Date: " . $r['reserved_date'] . " at " . $reservedTime12 . " (" . $r['status'] . ")\n";
             }
             $systemPrompt .= "\n";
         }
@@ -237,7 +240,8 @@ try {
         if (!empty($context['active_sessions_list'])) {
             $systemPrompt .= "## Details of Currently Ongoing Sessions\n";
             foreach ($context['active_sessions_list'] as $s) {
-                $systemPrompt .= "- Student: " . $s['student_name'] . " (ID: " . $s['student_id'] . "), Lab: " . $s['lab_name'] . ", PC: " . $s['pc_number'] . ", Time In: " . $s['time_in'] . ", Purpose: " . $s['purpose'] . "\n";
+                $timeIn12 = date('Y-m-d g:i A', strtotime($s['time_in']));
+                $systemPrompt .= "- Student: " . $s['student_name'] . " (ID: " . $s['student_id'] . "), Lab: " . $s['lab_name'] . ", PC: " . $s['pc_number'] . ", Time In: " . $timeIn12 . ", Purpose: " . $s['purpose'] . "\n";
             }
             $systemPrompt .= "\n";
         }
@@ -257,7 +261,8 @@ try {
                 if (!empty($ss['recent_sessions'])) {
                     $systemPrompt .= "- Recent History:\n";
                     foreach (array_slice($ss['recent_sessions'], 0, 5) as $rs) {
-                        $systemPrompt .= "  * " . substr($rs['time_in'], 0, 10) . " @ " . $rs['lab_name'] . " (" . $rs['duration_minutes'] . " mins)\n";
+                        $timeIn12 = date('Y-m-d g:i A', strtotime($rs['time_in']));
+                        $systemPrompt .= "  * " . $timeIn12 . " @ " . $rs['lab_name'] . " (" . $rs['duration_minutes'] . " mins)\n";
                     }
                 }
                 $systemPrompt .= "\n";
@@ -269,7 +274,8 @@ try {
         if (!empty($context['pending_reservations_list'])) {
             $systemPrompt .= "## Details of Pending Reservations\n";
             foreach ($context['pending_reservations_list'] as $r) {
-                $systemPrompt .= "- Student: " . $r['student_name'] . " (ID: " . $r['student_id'] . "), Lab: " . $r['lab_name'] . ", PC: " . $r['pc_number'] . ", Date: " . $r['reserved_date'] . " at " . $r['reserved_time'] . ", Purpose: " . $r['purpose'] . "\n";
+                $reservedTime12 = date('g:i A', strtotime($r['reserved_time']));
+                $systemPrompt .= "- Student: " . $r['student_name'] . " (ID: " . $r['student_id'] . "), Lab: " . $r['lab_name'] . ", PC: " . $r['pc_number'] . ", Date: " . $r['reserved_date'] . " at " . $reservedTime12 . ", Purpose: " . $r['purpose'] . "\n";
             }
             $systemPrompt .= "\n";
         }
@@ -306,6 +312,9 @@ try {
         $systemPrompt .= "When an admin asks for lists of data (like sessions or reservations), present each item as a 'card' using structured Markdown: \n";
         $systemPrompt .= "Use a horizontal separator (---) between items, use bold headers for names, and use a bulleted list for secondary details. Alternatively, use a clean Markdown Table if requested or if it fits the data better.\n";
     }
+
+    $systemPrompt .= "### Time Formatting Directive\n";
+    $systemPrompt .= "Always format dates and times using the 12-hour AM/PM format (e.g. 2:30 PM, 10:15 AM) in all your replies. Never use 24-hour time formatting (e.g. 14:30).\n\n";
 
     $systemPrompt .= "## Lab Schema Reference\n" . AiContextBuilder::schemaDescription() . "\n\n";
     $systemPrompt .= "Answer the user's latest message, keeping the system context in mind. Be helpful, professional, and concise.";
