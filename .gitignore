@@ -21,6 +21,7 @@ config/ai_settings.json
 config/ai_limits.php
 config/ai_rate_limits_cache.json
 test_gemini.php
+clear_cache.php
 
 # Documentation
 docs/
