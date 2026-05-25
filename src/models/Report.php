@@ -13,7 +13,8 @@ class Report {
      */
     public function getSitinReport($filters, $limit = null, $offset = null) {
         $sql = "SELECT 
-                    s.student_id,
+                sl.id,
+                s.student_id,
                     CONCAT(s.first_name, ' ', s.last_name) AS student_name,
                     l.name,
                     l.lab_code,
