@@ -11,6 +11,12 @@ node_modules/
 
 # Ignore all uploads folders recursively
 **/uploads/**
+
+# Debug and temporary scripts
+clear_cache.php
+debug_*.php
+check_cache.php
+inspect_cache.php
 # Except the .gitkeep files
 !**/uploads/**/*.gitkeep
 
